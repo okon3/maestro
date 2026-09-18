@@ -23,7 +23,7 @@ Measured, never guessed (v4 §1).
 
 **Lineages under consolidation**
 
-- Prompt v1→v4: `orchestrator-prompt-v4.md` in this repo. Provider-agnostic
+- Prompt v1→v4: `prompts/orchestrator-prompt-v4.md` in this repo. Provider-agnostic
   prose spec, tracker-first, capability-first routing, no enforcement.
 - `orchestrate` plugin 0.4.0:
   `C:\Git\Iconsulting\iconsulting-skill\plugins\orchestrate\` (Iconsulting

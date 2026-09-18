@@ -31,7 +31,7 @@ Decide:
 
 ## Context pointers
 
-- v4 §1 lists the cost components: `orchestrator-prompt-v4.md`.
+- v4 §1 lists the cost components: `prompts/orchestrator-prompt-v4.md`.
 - `orchestrate` logs `T<id>: impl <subagent_tokens>, critic <subagent_tokens>, <n> rounds`
   per task: `plugins/orchestrate/skills/orchestrate/SKILL.md`, "Verifying" step 6.
 - codegenesis uses a priori USD estimates per micro-task, not measurements:
