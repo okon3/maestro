@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maestro — review del pilota M-4 (Agriturismo 7C)</title>
+<style>
+  :root { --paper:#f7f4ec; --ink:#23261f; --muted:#5f6357; --line:#d8d2c2; --card:#fffdf7;
+    --pm:#6b4fa0; --arch:#1f6f8b; --impl:#3d7a3a; --qa:#b5651d; --rev:#7a3d6b;
+    --warn-bg:#fff4d6; --warn-line:#e3c76a; --q-bg:#eef3fb; --q-line:#9db6dc; --ok-bg:#eaf4e6; --ok-line:#8fbf7f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.55 system-ui,"Segoe UI",sans-serif; }
+  header { padding:28px 48px 16px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 0 6px; font-size:26px; } header p { margin:0; color:var(--muted); }
+  nav { position:sticky; top:0; z-index:5; background:var(--paper); border-bottom:1px solid var(--line); padding:8px 48px; display:flex; flex-wrap:wrap; gap:6px 16px; font-size:13px; }
+  nav a { color:var(--arch); text-decoration:none; }
+  main { max-width:1240px; padding:8px 48px 80px; }
+  section { margin-top:36px; }
+  h2 { font-size:20px; border-bottom:2px solid var(--ink); padding-bottom:4px; } h3 { font-size:16px; margin-top:22px; }
+  table { border-collapse:collapse; width:100%; background:var(--card); font-size:13.5px; }
+  th,td { border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; } th { background:#ece6d6; }
+  td.n { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  code { font-family:Consolas,"Cascadia Mono",monospace; font-size:12.5px; }
+  .role { display:inline-block; padding:1px 8px; border-radius:10px; color:#fff; font-size:12px; font-weight:600; }
+  .pm{background:var(--pm)} .arch{background:var(--arch)} .impl{background:var(--impl)} .qa{background:var(--qa)} .rev{background:var(--rev)}
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
+  .card .big { font-size:24px; font-weight:700; } .card small { color:var(--muted); display:block; }
+  .note { background:var(--warn-bg); border-left:4px solid var(--warn-line); padding:10px 14px; margin:14px 0; }
+  .ok { background:var(--ok-bg); border-left:4px solid var(--ok-line); padding:10px 14px; margin:14px 0; }
+  .q { background:var(--q-bg); border-left:4px solid var(--q-line); padding:10px 14px; margin:10px 0; } .q b { color:var(--arch); }
+  .bar { height:12px; border-radius:3px; display:inline-block; vertical-align:middle; }
+  .st { font-size:11.5px; padding:1px 7px; border-radius:8px; white-space:nowrap; }
+  .st.done { background:#d8ecd2; } .st.task { background:#dfe8f5; } .st.new { background:#f6e3c7; } .st.dec { background:#ead9ec; }
+  .r { color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Review del pilota M-4: GOAL 7C di Agriturismo con Maestro</h1>
+  <p>6 novembre 2026 · GOAL Maestro M-4 (TASK-5) · confronto con la 7B, fatta con le regole precedenti · fonti: eventi e tracker di Agriturismo, trascrizioni delle sessioni, <code>.maestro/reports/pilot-7C-vs-7B.md</code> e <code>pilot-friction.md</code> (23 voci) in Agriturismo.</p>
+</header>
+<nav>
+  <a href="#sintesi">1. In breve</a><a href="#confronto">2. 7B contro 7C</a><a href="#costi">3. Costi della 7C</a>
+  <a href="#bene">4. Cosa ha funzionato</a><a href="#attriti">5. Attriti e proposte</a><a href="#decisioni">6. Decisioni per l'owner</a>
+</nav>
+<main>
+
+<section id="sintesi">
+<h2>1. In breve</h2>
+<div class="grid">
+  <div class="card"><small>Tempo attivo</small><div class="big">1 h 55 min</div><small>7B: 1 h 27 min (+32%). Più circa 2 h 20 min fermi sul limite delle 5 ore.</small></div>
+  <div class="card"><small>Costo stimato (prezzi API)</small><div class="big">$53</div><small>7B: ≈ $30.5 (+74%). La 7C include QA e code review, la 7B no.</small></div>
+  <div class="card"><small>Difetti critici o gravi</small><div class="big">0</div><small>7B: 0. QA con un numero di difetti minori simile (5 contro circa 5).</small></div>
+  <div class="card"><small>Problemi trovati solo dalla code review</small><div class="big">3</div><small>Un test debole, una race nell'import asincrono, un componente cresciuto. La 7B non aveva review.</small></div>
+</div>
+<div class="ok"><b>Esito.</b> Maestro ha consegnato la 7C con qualità almeno pari alla 7B, tracciabilità molto migliore (GOAL, 14 task con criteri e test nominati, 2 ADR, rapporti QA e review) e una review che ha trovato problemi reali. Il prezzo è stato circa un terzo di tempo in più e tre quarti di costo in più, e l'uso ha toccato il limite delle 5 ore a metà dell'ondata di correzioni.</div>
+<div class="note"><b>Dove si recupera.</b> Le cause principali sono tre, tutte correggibili nel plugin:
+  <ul>
+    <li>l'architetto costa più di un terzo del totale;</li>
+    <li>il setup delle copie di lavoro è lento (<code>npm ci</code> a ogni copia) e gli implementer verificano a lungo nel browser;</li>
+    <li>la fine del GOAL procede in sequenza (QA, poi review, poi correzioni) e il limite d'uso non è un vero blocco.</li>
+  </ul></div>
+</section>
+
+<section id="confronto">
+<h2>2. 7B contro 7C</h2>
+<p class="r">Stesso giorno, stesso modulo (Edifici e Pianta), dimensione paragonabile. La 7B ha più lavoro di base (editor della pianta, import PDF), la 7C più interazione (due configurazioni, georeferenziazione, stanze sulla mappa).</p>
+<table>
+<tr><th></th><th>7B (regole precedenti)</th><th>7C (Maestro)</th></tr>
+<tr><td>Unità di lavoro</td><td>3 passi (1 e 2 in parallelo, poi 3)</td><td>5 task in 3 ondate + 9 correzioni (5 dal QA, 4 dalla review)</td></tr>
+<tr><td>Tempo attivo</td><td>~1 h 27 min (09:21 → 10:48)</td><td>~1 h 55 min (fermo ~2 h 20 min sul limite d'uso)</td></tr>
+<tr><td>Costo stimato</td><td>≈ $30.5 (orchestratore Opus $3.8 + 6 subagenti)</td><td>$53.16 (compreso un implementer interrotto dal limite)</td></tr>
+<tr><td>Test alla fine</td><td>264</td><td>315 (+51)</td></tr>
+<tr><td>QA esplorativo</td><td>1 giro, ~5 problemi minori, 1 cosmetico lasciato aperto</td><td>QA-1: 5 minori o cosmetici, tutti corretti; persistenza: 0; QA-2 di verifica: 0 nell'ambito</td></tr>
+<tr><td>Code review</td><td>nessuna</td><td>CR-1: 1 violazione, 2 debiti, 3 suggerimenti, tutti chiusi</td></tr>
+<tr><td>Interventi dell'owner</td><td>non misurati</td><td>approvazione con 2 domande materiali (decisioni 5 e 6); nessuno durante l'esecuzione, salvo la ripresa dopo il limite</td></tr>
+<tr><td>Decisioni tecniche</td><td>prosa in <code>PLAN.md</code></td><td>2 ADR in <code>docs/adr/</code></td></tr>
+</table>
+<p class="r">La 7B è misurata dalle trascrizioni della sua sessione (08:15–09:55 UTC); la 7C dagli eventi Maestro. I prezzi sono quelli di listino API: servono per confrontare, non sono la spesa reale dell'abbonamento.</p>
+</section>
+
+<section id="costi">
+<h2>3. Costi della 7C per ruolo</h2>
+<table>
+<tr><th>Ruolo</th><th>Agenti</th><th>Modello</th><th>Token (cache inclusa)</th><th>Costo stimato</th><th>Quota</th></tr>
+<tr><td><span class="role arch">Architetto</span></td><td class="n">1</td><td>Opus</td><td class="n">25.1M</td><td class="n">$18.45</td><td><span class="bar" style="width:105px;background:var(--arch)"></span> 35%</td></tr>
+<tr><td><span class="role impl">Implementer</span></td><td class="n">9</td><td>Opus e Sonnet</td><td class="n">≈ 73M</td><td class="n">$24.18</td><td><span class="bar" style="width:137px;background:var(--impl)"></span> 46%</td></tr>
+<tr><td><span class="role qa">QA</span></td><td class="n">5</td><td>Sonnet</td><td class="n">21.6M</td><td class="n">$4.23</td><td><span class="bar" style="width:24px;background:var(--qa)"></span> 8%</td></tr>
+<tr><td><span class="role pm">PM</span></td><td class="n">1</td><td>Opus</td><td class="n">7.6M</td><td class="n">$3.66</td><td><span class="bar" style="width:21px;background:var(--pm)"></span> 7%</td></tr>
+<tr><td><span class="role rev">Reviewer</span></td><td class="n">1</td><td>Opus</td><td class="n">5.1M</td><td class="n">$2.64</td><td><span class="bar" style="width:15px;background:var(--rev)"></span> 5%</td></tr>
+<tr><th>Totale</th><th></th><th></th><th></th><th class="n">$53.16</th><th></th></tr>
+</table>
+<h3>Cosa si legge</h3>
+<ul>
+  <li><b>L'architetto pesa più di un terzo.</b> Gira su Opus per tutto il GOAL. Pianifica, rivede, integra e aspetta in primo piano: ogni volta che riprende il lavoro rilegge un contesto che cresce. È la voce più grande dopo gli implementer.</li>
+  <li><b>Tre task Opus fanno metà del costo degli implementer:</b> 7C.4 $6.50, 7C.1 $5.85 e la suddivisione del componente $3.67. I task Sonnet stanno tra $0.20 e $2.09.</li>
+  <li><b>Verifica nel browser degli implementer:</b> occupa dal 22 al 40% del tempo e dal 25 al 31% dei token in input nei task osservati, senza aver portato a nessuna correzione. La causa principale è la riga 44 dell'<code>AGENTS.md</code> di Agriturismo, che si toglie con il TASK-5.2.</li>
+  <li><b>Misura corretta durante la review.</b> La dashboard ripeteva il costo di un implementer su tutti i task del suo gruppo: risultavano $49.46 di task misurati invece di $24.18. Corretto e pubblicato in <code>e6c9e76</code>. Corretto anche l'agente interrotto dal limite: non registrava la fine, per cui la dashboard lo mostrava "running" e lo escludeva dal costo per ruolo (≈ $2.9 qui).</li>
+</ul>
+</section>
+
+<section id="bene">
+<h2>4. Cosa ha funzionato</h2>
+<ul>
+  <li><b>Code review periodica:</b> ha trovato quello che il QA a scatola chiusa non vede (un test che non avrebbe colto una regressione, una race, un componente cresciuto), e le correzioni sono arrivate con test.</li>
+  <li><b>Ondate e copie di lavoro separate:</b> nessun conflitto fra i due implementer e nessun tentativo di recupero, con 0 cicli di critica.</li>
+  <li><b>Criteri con test nominati:</b> 315 test, uno per criterio; la dashboard mostra l'avanzamento task per task.</li>
+  <li><b>Approvazione del GOAL:</b> le due scelte materiali (decisioni 5 e 6) sono arrivate all'owner prima di partire, non a metà.</li>
+  <li><b>Ripresa dopo il limite:</b> <code>/maestro:resume</code> ha ricostruito lo stato, salvato il lavoro rimasto senza commit su <code>wip/</code> e fatto ripartire l'ondata.</li>
+</ul>
+</section>
+
+<section id="attriti">
+<h2>5. Attriti e proposte</h2>
+<p>Ho raccolto le 23 voci del diario del pilota e le osservazioni dell'owner in questa sessione, raggruppate per intervento. Il numero <code>#n</code> rimanda al diario in Agriturismo.</p>
+<table>
+<tr><th>Stato</th><th>Intervento</th><th>Attriti</th><th>Effetto atteso</th></tr>
+<tr><td><span class="st done">fatto</span></td><td>Architetto in background: il PM resta disponibile all'owner</td><td>owner, #21</td><td>niente più messaggi in coda per un'ora</td></tr>
+<tr><td><span class="st done">fatto</span></td><td><code>/maestro:init</code> con controllo "una sola fonte di verità" (TASK-5.1)</td><td>owner</td><td>regole del progetto senza doppioni di Maestro</td></tr>
+<tr><td><span class="st done">fatto</span></td><td>Dashboard: costo per task di un gruppo contato una volta sola, titoli lunghi letti</td><td>owner</td><td>costi per task affidabili</td></tr>
+<tr><td><span class="st task">task</span></td><td>TASK-5.2: togliere da <code>AGENTS.md</code> di Agriturismo le regole che Maestro ha già (righe 38, 42, 43–47, 115)</td><td>owner</td><td>meno browser negli implementer, nessuna regola in conflitto</td></tr>
+<tr><td><span class="st task">task</span></td><td>TASK-5.3: gli agenti scrivono nella lingua del progetto</td><td>#3, owner</td><td>una sola regola sulla lingua</td></tr>
+<tr><td><span class="st task">task</span></td><td>TASK-5.4: playbook del progetto con le lezioni curate a fine GOAL; attriti di Maestro solo con <code>frameworkFeedback</code></td><td>#16, #15, owner</td><td>il QA non riscopre ogni volta i trucchi su download e selettori di file</td></tr>
+<tr><td><span class="st task">task</span></td><td>TASK-5.5: blocco d'uso (claim e lanci rifiutati sopra il 95%, l'architetto controlla prima di ogni lancio)</td><td>#19, owner</td><td>nessun GOAL interrotto dal limite</td></tr>
+<tr><td><span class="st new">nuovo</span></td><td><b>Copie di lavoro pronte:</b> <code>maestro worktree</code> collega o installa <code>node_modules</code> e libera la copia in modo sicuro; gli implementer chiudono i server di anteprima</td><td>#7, #9, #15, #23</td><td>minuti risparmiati a ogni task e snapshot QA senza <code>npm ci</code></td></tr>
+<tr><td><span class="st new">nuovo</span></td><td><b>Fine GOAL in parallelo:</b> QA e code review insieme, poi una sola ondata di correzioni; il PM resta sul ramo principale</td><td>#17, #18</td><td>~15 min in meno a GOAL, niente correzioni inoltrate a metà ondata</td></tr>
+<tr><td><span class="st new">nuovo</span></td><td><b>Lavoro interrotto dal limite:</b> salvare il lavoro in corso su <code>wip/</code> appena arriva l'evento <code>limit.hit</code> (la dashboard ora mostra questi agenti come fermi e li conta nel costo)</td><td>#20, review</td><td>ripresa automatica e costi completi</td></tr>
+<tr><td><span class="st new">nuovo</span></td><td><b>Rapporti automatici:</b> <code>maestro measure</code> scrive il rapporto del task dal rapporto finale dell'implementer; il QA ha il permesso esplicito di scrivere il proprio file</td><td>#12, #14</td><td>meno lavoro manuale per architetto e PM</td></tr>
+<tr><td><span class="st new">nuovo</span></td><td><b>Gruppi di task piccoli:</b> renderli un concetto del plugin (un implementer, più task, una sola misura)</td><td>#22, review dei costi</td><td>correzioni piccole senza un implementer ciascuna</td></tr>
+<tr><td><span class="st new">nuovo</span></td><td><b>Rifiniture della CLI:</b>
+  <ul>
+    <li>init crea <code>events.jsonl</code> e <code>reports/</code>, e le regole <code>eol</code>;</li>
+    <li><code>maestro status</code> elenca i GOAL proposti;</li>
+    <li>vocabolario degli eventi documentato, con avviso sui tipi sconosciuti;</li>
+    <li><code>maestro doctor</code> segnala una versione del plugin cambiata a metà sessione;</li>
+    <li>l'architetto usa <code>--add-ref</code>;</li>
+    <li>l'architetto ha un suggerimento per includere nell'ambito il componente che usa le props cambiate.</li>
+  </ul></td><td>#1, #2, #4, #5, #8, #11, #13, #21</td><td>meno inciampi al primo uso</td></tr>
+<tr><td><span class="st new">nuovo</span></td><td><b>Dashboard:</b>
+  <ul>
+    <li>domande aperte distinte dalle decisioni che bloccano;</li>
+    <li>milestone finita con solo bozze mostrata come chiusa;</li>
+    <li>il visore delle decisioni non mostra più il front matter;</li>
+    <li>i debiti senza GOAL compaiono nella Roadmap;</li>
+    <li>il testo degli eventi sconosciuti è visibile;</li>
+    <li>la scheda di QA e reviewer mostra cosa stanno facendo.</li>
+  </ul></td><td>#6, idee dall'handoff</td><td>la dashboard dice il vero su cosa aspetta l'owner</td></tr>
+<tr><td><span class="st dec">decisione</span></td><td><b>Corsia veloce per correzioni piccole</b> senza architetto (vedi §6)</td><td>#22</td><td>una correzione di una riga oggi costa un GOAL intero: ~19 min, $3</td></tr>
+<tr><td><span class="st dec">decisione</span></td><td><b>Costo dell'architetto</b> (vedi §6)</td><td>review dei costi</td><td>fino a −$8–10 per GOAL</td></tr>
+<tr><td><span class="st dec">osservazione</span></td><td>L'architetto aspetta gli implementer in primo piano: è un vincolo della piattaforma, verificato nel lab (<code>bg-nesting-2</code>). Nella 7C un task finito è rimasto fermo 13 minuti; per ora la mitigazione è affiancare nella stessa ondata task di durata simile</td><td>#10, owner</td><td>da rivedere se l'architetto diventa una sessione a sé</td></tr>
+</table>
+</section>
+
+<section id="decisioni">
+<h2>6. Decisioni per l'owner</h2>
+<div class="q"><b>D1. Come raccogliere gli interventi nuovi.</b>
+  <ul>
+    <li><b>A (consigliata):</b> un GOAL M-6 "Maestro 1.1: correzioni dal pilota" con i TASK-5.2–5.5 e le voci "nuovo" della §5, in ondate. M-4 si chiude con questa review.</li>
+    <li><b>B:</b> tenerli come task di M-4 e chiudere M-4 solo quando sono fatti.</li>
+    <li><b>C:</b> anticipare M-5 (strumento di misura) per misurare ogni correzione prima e dopo.</li>
+  </ul></div>
+<div class="q"><b>D2. Corsia veloce per le correzioni piccole.</b>
+  <ul>
+    <li><b>A (consigliata):</b> il PM, con l'approvazione dell'owner, lancia direttamente un implementer per una correzione con un solo task e senza scelte materiali. Il resto del flusso non cambia: copia di lavoro, test nominato, review del PM, integrazione. La code review conta i task, non i GOAL.</li>
+    <li><b>B:</b> nessuna eccezione; le correzioni piccole si raccolgono in un GOAL "correzioni" ogni tanto.</li>
+  </ul></div>
+<div class="q"><b>D3. Costo dell'architetto.</b>
+  <ul>
+    <li><b>A (consigliata):</b> l'architetto resta su Opus ma con sforzo medio per le ondate di correzioni e la review; sforzo alto solo per pianificare e scrivere gli ADR.</li>
+    <li><b>B:</b> architetto su Sonnet di default, Opus solo per GOAL marcati difficili.</li>
+    <li><b>C:</b> non cambiare nulla finché M-5 non permette di misurarlo.</li>
+  </ul></div>
+</section>
+
+</main>
+</body>
+</html>
