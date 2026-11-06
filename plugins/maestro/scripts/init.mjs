@@ -204,7 +204,7 @@ export function init({ cwd = process.cwd(), dryRun = false, project, mainBranch,
   }
 
   // Files created only when missing.
-  for (const [path, tpl] of [[".maestro/handoff.md", "handoff.md"], ["PLAN.md", "PLAN.md"]]) {
+  for (const [path, tpl] of [[".maestro/handoff.md", "handoff.md"], [".maestro/playbook.md", "playbook.md"], ["PLAN.md", "PLAN.md"]]) {
     if (read(path) === null) {
       write(path, template(tpl).replaceAll("{{PROJECT}}", name));
       act(path, "create");

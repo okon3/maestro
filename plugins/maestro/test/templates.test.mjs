@@ -175,6 +175,28 @@ test("init_adds_definition_of_done_defaults_idempotently", () => {
   assert.ok(!read(multi.dir, "backlog/config.yml").includes("Architect review approved"));
 });
 
+test("init_creates_playbook_with_role_headings", () => {
+  const { dir, run } = setup();
+  const r = run("--skip-backlog");
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.match(r.stdout, /^create\s+\.maestro\/playbook\.md/m);
+  const playbook = read(dir, ".maestro/playbook.md");
+  const headings = playbook.split("\n").filter((l) => l.startsWith("## "));
+  assert.deepEqual(headings, ["## implementer", "## architect", "## qa", "## reviewer", "## pm"]);
+  for (const section of playbook.split(/^## .*$/m).slice(1)) assert.equal(section.trim(), "", "sections start empty");
+  assert.equal("frameworkFeedback" in JSON.parse(read(dir, ".maestro/config.json")), false, "opt-in key not written");
+
+  // An existing playbook (curated lines) and an existing config are never touched.
+  const curated = "# Project playbook\n\n## qa\n\n- file picker: stub showSaveFilePicker\n";
+  const config = '{"mainBranch":"main"}\n';
+  const existing = setup({ ".maestro/playbook.md": curated, ".maestro/config.json": config });
+  const again = existing.run("--skip-backlog");
+  assert.equal(again.status, 0, again.stderr + again.stdout);
+  assert.match(again.stdout, /^unchanged\s+\.maestro\/playbook\.md/m);
+  assert.equal(read(existing.dir, ".maestro/playbook.md"), curated);
+  assert.equal(read(existing.dir, ".maestro/config.json"), config);
+});
+
 test("init_proposes_node_modules_link", () => {
   const link = { link: ["node_modules"], run: null };
   // New config in a Node project: the key is part of the created file.
