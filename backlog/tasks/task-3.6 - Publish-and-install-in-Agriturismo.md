@@ -1,9 +1,11 @@
 ---
 id: TASK-3.6
 title: Publish and install in Agriturismo
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@architect'
 created_date: '2026-11-06T14:30:00Z'
+updated_date: '2026-11-06T14:54:00Z'
 labels: []
 dependencies:
   - TASK-3.5
