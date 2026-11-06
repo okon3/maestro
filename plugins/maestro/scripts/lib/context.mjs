@@ -99,23 +99,37 @@ export function contextUsage(transcriptPath, { window = 1000000 } = {}) {
   return result;
 }
 
-/** Token usage per model plus wall time, deduplicated by message id (section 5). */
-export function usageSummary(transcriptPath) {
+const toMs = (v) => (v === undefined || v === null ? null : typeof v === "number" ? v : Date.parse(v));
+
+/**
+ * Token usage per model plus wall time, deduplicated by message id (section 5).
+ * With `from` / `to` (ISO strings or ms), only assistant messages whose timestamp is in [from, to) count,
+ * and wallMs is the span of those messages. Without them every line counts.
+ */
+export function usageSummary(transcriptPath, { from, to } = {}) {
+  const lo = toMs(from);
+  const hi = toMs(to);
+  const windowed = lo !== null || hi !== null;
   const byId = new Map(); // last occurrence wins: streamed messages repeat their usage
   let anon = 0;
   let first = null;
   let last = null;
+  const span = (t) => {
+    if (first === null || t < first) first = t;
+    if (last === null || t > last) last = t;
+  };
   for (const line of linesForwards(transcriptPath)) {
     const e = parse(line);
     if (!e) continue;
     const t = Date.parse(e.timestamp);
-    if (!Number.isNaN(t)) {
-      if (first === null || t < first) first = t;
-      if (last === null || t > last) last = t;
-    }
+    if (!windowed && !Number.isNaN(t)) span(t);
     if (e.type !== "assistant" || !e.message?.usage) continue;
     const model = e.message.model;
     if (!model || model === "<synthetic>") continue;
+    if (windowed) {
+      if (Number.isNaN(t) || (lo !== null && t < lo) || (hi !== null && t >= hi)) continue;
+      span(t);
+    }
     byId.set(e.message.id ?? `anon-${anon++}`, { model, usage: e.message.usage });
   }
   const models = {};

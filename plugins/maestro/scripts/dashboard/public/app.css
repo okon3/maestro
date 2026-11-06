@@ -408,6 +408,19 @@ details > summary:hover { color: var(--ink); }
 .stats dd { font: 600 17px/1.25 var(--f-num); font-variant-numeric: tabular-nums; }
 .stats dd .flag { vertical-align: 3px; }
 .goal-cost .data { border-radius: 6px; }
+.goal-cost.has-full { grid-column: 1 / -1; }
+.goal-cost.has-full header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-bottom: 10px; }
+.goal-cost.has-full h3 { margin-bottom: 0; }
+.goal-window { color: var(--ink-2); font-size: 13px; }
+.open-badge { display: inline-block; padding: 0 6px; border-radius: 4px; background: var(--accent); color: #fff; font: 600 11.5px/17px var(--f-ui); margin-right: 2px; }
+.full-cost { margin-bottom: 18px; }
+.stats dd.big { font-size: 22px; }
+.roles tfoot th, .roles tfoot td { border-top: 1px solid var(--line); background: #f6f8fa; font-weight: 600; }
+.roles tbody td.quiet { font-size: 12.5px; }
+.run-count { margin-left: 6px; color: var(--warn); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cost-note { margin-top: 8px; color: var(--warn); font-size: 13px; }
+.cost-sub { font: 600 13.5px/1.3 var(--f-ui); margin: 0 0 8px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.cost-sub .quiet { font-weight: 400; font-size: 12.5px; margin-left: 6px; }
 
 .chart { padding: 14px 16px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
 .chart figcaption { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }

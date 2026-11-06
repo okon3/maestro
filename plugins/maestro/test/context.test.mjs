@@ -60,6 +60,35 @@ test("usage_dedupes_streamed_messages", () => {
   assert.equal(r.wallMs, 5000);
 });
 
+test("usage_summary_respects_window", () => {
+  const at = (ts) => ({ timestamp: ts });
+  const file = writeTranscript([
+    { type: "user", timestamp: "2026-11-06T09:00:00.000Z", message: { content: "before" } },
+    assistant("before", { input: 1000 }, at("2026-11-06T09:59:59.999Z")),
+    assistant("a", { input: 1, output: 2 }, at("2026-11-06T10:00:00.000Z")), // from is inclusive
+    assistant("a", { input: 1, output: 5 }, at("2026-11-06T10:00:01.000Z")), // streamed repeat: last wins
+    assistant("b", { cacheRead: 30 }, { ...at("2026-11-06T10:30:00.000Z"), model: "claude-opus-5-5" }),
+    assistant("end", { input: 2000 }, at("2026-11-06T11:00:00.000Z")), // to is exclusive
+    { type: "user", timestamp: "2026-11-06T12:00:00.000Z", message: { content: "after" } },
+  ]);
+  const r = usageSummary(file, { from: "2026-11-06T10:00:00.000Z", to: "2026-11-06T11:00:00.000Z" });
+  assert.deepEqual(r.models, {
+    "claude-sonnet-5-5": { input: 1, output: 5, cacheRead: 0, cacheWrite: 0 },
+    "claude-opus-5-5": { input: 0, output: 0, cacheRead: 30, cacheWrite: 0 },
+  });
+  assert.equal(r.wallMs, 30 * 60 * 1000); // span of the included messages only
+  // Milliseconds work too, and an open end keeps everything after `from`.
+  const open = usageSummary(file, { from: Date.parse("2026-11-06T10:30:00.000Z") });
+  assert.deepEqual(Object.keys(open.models).sort(), ["claude-opus-5-5", "claude-sonnet-5-5"]);
+  assert.equal(open.models["claude-sonnet-5-5"].input, 2000);
+  // Empty window: no models, no wall time.
+  assert.deepEqual(usageSummary(file, { from: "2026-11-07T00:00:00Z", to: "2026-11-08T00:00:00Z" }), { models: {}, wallMs: 0 });
+  // Without options the behaviour is unchanged: every message, wall time over every line.
+  const all = usageSummary(file);
+  assert.equal(all.models["claude-sonnet-5-5"].input, 3001);
+  assert.equal(all.wallMs, 3 * 60 * 60 * 1000);
+});
+
 test("subagentTranscriptPath follows the session layout", () => {
   const p = subagentTranscriptPath(join("a", "proj", "sess1.jsonl"), "abc");
   assert.equal(p, join("a", "proj", "sess1", "subagents", "agent-abc.jsonl"));
