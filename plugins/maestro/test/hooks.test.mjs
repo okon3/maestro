@@ -209,3 +209,26 @@ test("hooks_never_throw", () => {
   assert.equal(bad.status, 0);
   assert.deepEqual(types(dir), []);
 });
+
+test("context_hook_writes_runtime", () => {
+  const dir = tempRepo({ config: { contextWindow: 1000 } });
+  const file = join(dir, ".maestro", "runtime", "context.json");
+  const at = (tokens) => writeTranscript([assistant("m" + tokens, { input: tokens })]);
+  const base = { cwd: dir, session_id: "s7", hook_event_name: "UserPromptSubmit" };
+
+  // Below every band: no warning, but the snapshot is written.
+  assert.equal(run("context-watch", { ...base, transcript_path: at(300) }).stdout, "");
+  const first = JSON.parse(readFileSync(file, "utf8"));
+  assert.deepEqual({ sessionId: first.sessionId, percent: first.percent, contextTokens: first.contextTokens, window: first.window }, { sessionId: "s7", percent: 30, contextTokens: 300, window: 1000 });
+  assert.ok(Math.abs(Date.now() - Date.parse(first.ts)) < 60000);
+
+  // Every run refreshes it, also inside a band that already warned.
+  run("context-watch", { ...base, transcript_path: at(520) });
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).percent, 52);
+  run("context-watch", { ...base, transcript_path: at(560) });
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).percent, 56);
+
+  // Subagents never write it: their transcript_path is the PM transcript.
+  run("context-watch", { ...base, agent_id: "ag1", transcript_path: at(900) });
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).percent, 56);
+});
