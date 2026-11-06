@@ -60,14 +60,22 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
 ## 4. Running a GOAL
 
 1. Use the `maestro:start-goal` skill. It creates the goal branch, checks the GOAL fields, and launches the architect in the **background** with the brief, so you stay available to the owner.
-   While the architect runs: answer the owner, and keep track of new requests and decisions in the conversation, but do not write files, commit, switch branches or edit the tracker in the main checkout (the architect owns it until it returns; record them there afterwards), and do not start another GOAL. If an owner answer changes the running work, send it to the architect with `SendMessage` to its agent id; otherwise apply it when the architect returns.
+   Your checkout stays on the main branch for the whole GOAL: the tracker lives there, and the architect works on the goal branch in its own worktree (`.claude/worktrees/goal-<goal-id>`). Never switch your checkout's branch.
+   While the architect runs: answer the owner, and keep track of new requests and decisions in the conversation, but do not write files, commit or edit the tracker in the main checkout (the architect commits tracker files there and merges into the main branch there until it returns; record yours afterwards), and do not start another GOAL. If an owner answer changes the running work, send it to the architect with `SendMessage` to its agent id; otherwise apply it when the architect returns.
 2. The architect returns in one of three states:
    - **integrated**: the GOAL is merged into the main branch;
    - **blocked**: a material decision or an owner action is needed, or a task was read two ways (intent gap: the owner picks a reading);
    - **failed**: with evidence.
 3. When blocked, ask the owner, record the decision, then resume **the same architect** with `SendMessage` to its agent id. It keeps its full history.
-4. After integration, run QA (`maestro:triage-qa` explains missions and triage) and, when due, the periodic review (`maestro:periodic-review`: every `reviewEveryTasks` integrated tasks or at GOAL end, whichever comes first). Findings become tasks for the architect.
-5. Close the GOAL, from the main branch (`git switch <mainBranch>`: the architect merged there while your checkout stayed on the goal branch):
+4. **GOAL end: QA and code review together, then one fix wave.** When the architect returns **integrated**:
+   1. Check whether the periodic review is due (`maestro:periodic-review` section 1).
+   2. Run `maestro usage --check` once for these launches. At `lower` or above, launch nothing (section 6): tell the owner and wait for the reset.
+   3. Prepare everything first: the QA snapshot, requirements and missions (`maestro:triage-qa` sections 1-2) and, when due, the review tag and snapshot (`maestro:periodic-review` section 2, steps 1-4).
+   4. Launch all the QA missions and, when due, the code reviewer **in the same message**, in the foreground as both skills prescribe. They run in parallel, so you are busy for the longest of them, not for their sum. Tell the owner first that you will be back when they return.
+   5. Triage both (`maestro:triage-qa` section 4, `maestro:periodic-review` section 3), then close both (`maestro:triage-qa` section 5 steps 1-5, `maestro:periodic-review` section 4 steps 1-3) and commit everything together on the main branch.
+   6. If there are valid findings (QA defects, review violations, review debt placed in this GOAL), run `maestro usage --check` and resume the architect **once** with `SendMessage` to its agent id: one fix wave with every task id, its source (`qa:` or `review:` reference), its priority and any frozen area. If its agent id is no longer resumable (after a pause or in a new session), launch a fresh architect as in `maestro:start-goal` step 5, with `Fix wave: <task ids>` in the brief. Never forward findings to an architect while it is fixing: what turns up later waits for the next wave.
+   7. When the fix wave returns integrated, run a re-verification QA (`maestro:triage-qa`, on a new tag): one short mission per fixed defect. New defects go through steps 5-7 again. The critique limit (section 5) applies to this loop.
+5. Close the GOAL, on the main branch (your checkout is already there):
    - check its acceptance criteria with evidence;
    - set every Integrated subtask and the GOAL to Done;
    - a subtask that is not Integrated (an open defect or debt) must not be archived with the GOAL: with the owner, move it to the next GOAL or turn it into a standalone task (`backlog task edit <id> --parent ""` if supported, else recreate it and archive the old one with a pointer);
@@ -75,6 +83,7 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
    - `maestro event goal.done --goal <goal-id> --actor pm`;
    - archive the GOAL together with its Done tasks and commit everything in **one** commit on the main branch: tracker, `PLAN.md`, reports and `.maestro/events.jsonl` (hooks append events after other commits, so a pending change there is normal: always include it);
    - tag that commit `done/<goal-id>` (never `goal/<id>`: that name is the goal branch);
+   - remove the architect's goal worktree: `maestro worktree goal-<goal-id> --remove` (keep the goal branch);
    - report to the owner: outcome, evidence, limitations, external actions taken, next step.
 
 ## 5. Limits that persist across agents and sessions

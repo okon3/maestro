@@ -35,7 +35,7 @@ QA levels (chosen by the architect per task, summarized in its QA HINTS): **none
 
 ## 3. Launch
 
-Launch one Agent per mission with `subagent_type: "maestro:qa-explorer"`, in the **foreground**. Launch independent missions in the same message so they run in parallel. Brief:
+Launch one Agent per mission with `subagent_type: "maestro:qa-explorer"`, in the **foreground**. Launch independent missions in the same message so they run in parallel; at GOAL end, launch the code reviewer in that same message when the review is due (PM skill section 4, step 4). Brief:
 
 ```
 QA: QA-<n>   Tag: qa/QA-<n>
@@ -64,5 +64,5 @@ For each finding in each report:
 2. Turn valid defects into tasks for the architect, linked to the GOAL: `backlog task create "Defect: <title>" -p <GOAL id> -s "To Do" --ref "qa:QA-<n>/<mission>/<finding>" -d "<steps, expected, actual, evidence path, tag>"`. Critical and major defects get `--priority high`.
 3. Lift freezes: `maestro event qa.done --goal <GOAL id> --actor pm --data '{"qa":"QA-<n>","defects":<count>,"unfrozen":["<area>"]}'`, and update `.maestro/handoff.md`.
 4. Stop the snapshot's servers (the process ids you noted), then remove the snapshot worktree: `maestro worktree qa-QA-<n> --remove --force`. It unlinks the shared folders first, so the main checkout's `node_modules` is never deleted through the link; if it reports a process holding the worktree, stop that process and retry. Delete any copied build and the missions' data folders. Keep the tag.
-5. Commit the requirements, reports and triage (`.maestro/reports/qa/`), the tasks and `.maestro/events.jsonl` on the branch the PM's checkout is on (the main branch after integration).
-6. If there are defects, resume the architect with `SendMessage` (or launch one with `maestro:start-goal`) to fix them. The GOAL closes only when its criteria hold with evidence and no critical or major defect is open.
+5. Commit the requirements, reports and triage (`.maestro/reports/qa/`), the tasks and `.maestro/events.jsonl` on the main branch, in your checkout. At GOAL end, commit them together with the code review's report and tasks when the review ran in parallel.
+6. If there are defects, they go to the architect as **one fix wave** together with the code review's findings (PM skill section 4, step 4): never forward them to an architect already fixing. The GOAL closes only when its criteria hold with evidence and no critical or major defect is open.

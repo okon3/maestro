@@ -92,7 +92,8 @@
   <div class="card"><h4><span class="role pm">PM</span> · sessione principale · Opus</h4><ul>
     <li>Gestisce con l'utente piano, priorità, criteri e domande.</li>
     <li>Avvia un <b>architetto per GOAL in background</b>, così resta disponibile per l'utente mentre il team lavora; lo riprende quando c'è una decisione dell'utente.</li>
-    <li>Avvia <b>QA e revisore</b> in modo indipendente dall'architetto e smista i loro rapporti.</li>
+    <li>Avvia <b>QA e revisore</b> in modo indipendente dall'architetto e smista i loro rapporti. A fine GOAL li lancia <b>insieme</b> e riprende l'architetto <b>una volta sola</b> con tutti i rilievi validi.</li>
+    <li>Il suo checkout resta su <code>master</code> per tutto il GOAL: lì vive il tracker.</li>
     <li>Sorveglia contesto e consumo; gestisce pausa, ripresa e passaggi di turno.</li>
     <li>Non scrive codice e non integra.</li></ul></div>
   <div class="card"><h4><span class="role arch">Architetto</span> · capo del GOAL · Opus</h4><ul>
@@ -100,6 +101,7 @@
     <li>Scompone il GOAL <b>a ondate</b> e sceglie per ogni task corsia, modello, effort e livello di QA.</li>
     <li>Scrive i criteri come casi di accettazione (dato / quando / allora) e rivede per primi i test che li coprono.</li>
     <li>Avvia e coordina i 2 implementatori sul ramo del GOAL e rivede i loro diff. <b>Resta attivo finché gli implementatori non tornano</b>: altrimenti i loro risultati arrivano al PM.</li>
+    <li>Lavora sul ramo del GOAL in una <b>propria worktree</b> (<code>.claude/worktrees/goal-&lt;id&gt;</code>); il tracker lo aggiorna dal checkout principale e lo mette in commit su <code>master</code>.</li>
     <li>Risolve i conflitti e integra il GOAL in <code>master</code>.</li>
     <li>Le decisioni rilevanti non le prende: le porta al PM con opzioni e raccomandazione.</li></ul></div>
   <div class="card"><h4><span class="role impl">Implementatore ×2</span> · Sonnet (Opus se indicato)</h4><ul>
@@ -141,14 +143,21 @@ flowchart TB
   A -->|decisione rilevante: opzioni + raccomandazione| PM
   PM -->|chiede| U
   PM -->|riprende con la scelta| A
-  A -->|GOAL integrato in master, tag| PM
-  PM -->|tag qa/QA-n| QA[QA esplorativo]
-  PM -->|ogni 15 task o fine GOAL<br/>tag cr/CR-n| CR[Revisore]
+  A -->|GOAL integrato in master| PM
+  PM -->|insieme: tag qa/QA-n| QA[QA esplorativo]
+  PM -->|insieme, se dovuta: tag cr/CR-n| CR[Revisore]
   QA -->|rapporto| PM
   CR -->|rapporto| PM
-  PM -->|difetti e refactoring come task| A
+  PM -->|una sola ondata di correzioni:<br/>difetti e rilievi come task| A
   PM -->|esito, deploy solo se richiesto| U
 </div>
+<p><b>Rami e checkout</b> (attrito del pilota: il PM passava al ramo del GOAL, doveva ricordarsi di tornare su <code>master</code> e metteva in commit il tracker mentre anche l'architetto lo toccava):</p>
+<ul>
+  <li>All'avvio il PM crea il ramo <code>goal/&lt;id&gt;</code> <b>senza passarci</b> (<code>git branch</code>): il checkout principale resta su <code>master</code> per tutto il GOAL, e lì vivono il tracker, i rapporti e il registro eventi.</li>
+  <li>L'architetto lavora sul ramo del GOAL in una propria worktree, <code>.claude/worktrees/goal-&lt;id&gt;</code> (fotografia con il passo <code>worktreeSetup</code>, poi agganciata al ramo): lì integra i rami degli implementatori, esegue le verifiche, scrive ADR e contratti. A fine GOAL unisce <code>master</code> nel ramo del GOAL nella sua worktree e poi il ramo del GOAL in <code>master</code> nel checkout principale.</li>
+  <li>I file del tracker si mettono in commit <b>solo su <code>master</code></b>: dall'architetto mentre lavora (è l'unico a fare commit nel checkout principale finché non torna), dal PM negli altri momenti. Il ramo del GOAL e i rami degli implementatori contengono solo codice. Il PM rimuove la worktree del GOAL quando chiude il GOAL.</li>
+</ul>
+<p><b>Fine GOAL in parallelo</b> (pilota: QA, poi code review, poi correzioni; i rilievi della review arrivavano mentre l'architetto correggeva i difetti del QA negli stessi file e andavano inoltrati a metà ondata): quando l'architetto torna con il GOAL integrato, il PM prepara fotografia e missioni QA e, se è dovuta, la code review, e le lancia <b>nello stesso messaggio</b>. Smista entrambi i rapporti, li chiude in un solo commit e riprende l'architetto <b>una volta sola</b>, con tutti i rilievi validi come task di un'unica ondata di correzioni. Dopo l'ondata resta il QA di riverifica sui difetti corretti.</p>
 </section>
 
 <section id="pianificazione">
@@ -194,7 +203,7 @@ stateDiagram-v2
 <tr><td><code>.maestro/handoff.md</code></td><td>Punto della situazione del PM: cosa è in corso, cosa aspetta l'owner, prossima azione. Lo riscrive solo il PM, alla pausa e al cambio turno.</td><td>sì</td></tr>
 <tr><td><code>.maestro/events.jsonl</code></td><td>Registro degli eventi a sola aggiunta, con unione automatica nei merge (<code>merge=union</code>). Contiene anche i record di misura per task (sezione 14).</td><td>sì, alla pausa</td></tr>
 <tr><td><code>.maestro/runtime/</code></td><td>Blocchi, presa in carico dei task, battiti, cache di consumo e contesto.</td><td>no</td></tr>
-<tr><td><code>.claude/worktrees/</code></td><td>Worktree degli implementatori e fotografie staccate per QA e code review.</td><td>no</td></tr>
+<tr><td><code>.claude/worktrees/</code></td><td>Worktree degli implementatori, worktree del GOAL dell'architetto (<code>goal-&lt;id&gt;</code>) e fotografie staccate per QA e code review.</td><td>no</td></tr>
 </table>
 <p><b>Worktree pronte all'uso</b> (attrito del pilota Agriturismo: ogni implementatore rifaceva <code>npm ci</code>, minuti e rete ogni volta). <code>maestro worktree</code>, dopo aver creato la worktree, applica il passo <code>worktreeSetup</code> di <code>.maestro/config.json</code>:</p>
 <ul>
@@ -217,7 +226,8 @@ stateDiagram-v2
 <tr><td>Decisioni dell'owner</td><td class="w">W</td><td class="r">R</td><td class="r">R</td><td class="x">—</td><td class="r">R</td></tr>
 <tr><td>Rapporti</td><td>requisiti QA</td><td>revisione task</td><td>il proprio</td><td>il proprio</td><td>il proprio</td></tr>
 <tr><td>Codice</td><td class="x">—</td><td>integrazione, conflitti</td><td class="w">W (ambito)</td><td class="x">—</td><td class="x">—</td></tr>
-<tr><td><code>master</code></td><td class="x">—</td><td class="w">W (merge con blocco)</td><td class="x">—</td><td class="x">—</td><td class="x">—</td></tr>
+<tr><td><code>master</code></td><td>commit del tracker (quando l'architetto non lavora)</td><td class="w">W (merge del GOAL; commit del tracker mentre lavora)</td><td class="x">—</td><td class="x">—</td><td class="x">—</td></tr>
+<tr><td>Ramo del GOAL</td><td>lo crea, senza passarci</td><td class="w">W (nella propria worktree)</td><td class="x">—</td><td class="x">—</td><td class="x">—</td></tr>
 <tr><td><code>events.jsonl</code></td><td colspan="5">tutti, solo aggiunta (anche in automatico dagli hook)</td></tr>
 </table>
 </section>
@@ -256,6 +266,7 @@ sequenceDiagram
   <li><b>Contro il bias dei test scritti da chi implementa:</b> l'architetto scrive i criteri come casi concreti (dato / quando / allora), ognuno legato a un test con nome. L'implementatore scrive i test e il codice; l'architetto rivede <b>prima i test</b>, poi il codice. La code review controlla anche la qualità dei test e il QA resta la rete finale indipendente. Un <b>autore dei test</b> separato è rinviato: si valuta dopo il pilota, guardando i costi.</li>
   <li><b>QA:</b> livelli <code>none</code>, <code>self-smoke</code> (l'implementatore apre la pagina), <code>checkpoint</code> (a fine GOAL o prima di un deploy) e <code>dedicated</code> (aree critiche). Missioni brevi e mirate: il pilota sulla 7B ha mostrato che una missione unica e ampia copre poco.</li>
   <li><b>Code review periodica:</b> ogni 15 task o a fine GOAL. Rilievi in tre gradi: <i>violazione</i> (task prioritario), <i>debito</i> (in coda), <i>suggerimento</i> (annotato). Non blocca il lavoro in corso.</li>
+  <li><b>Fine GOAL:</b> missioni QA e code review (se dovuta) partono insieme; i loro rilievi validi tornano all'architetto in <b>una sola ondata di correzioni</b>, mai inoltrati a un architetto che sta già correggendo. Poi un QA di riverifica sui difetti corretti (sezione 3).</li>
 </ul>
 </section>
 
@@ -300,7 +311,7 @@ sequenceDiagram
 <section id="pausa">
 <h2>12. Pausa, ripresa e altri PC</h2>
 <ol>
-  <li><b>Pausa</b> (skill del PM): accende il segnale di pausa con <code>maestro pause --on</code> (<code>.maestro/runtime/pause.json</code>, fuori da git), che blocca nel codice claim nuovi e lanci di agenti <code>maestro:*</code>; poi aspetta gli agenti, oppure li ferma a un punto pulito. Il messaggio di pausa raggiunge l'architetto solo quando gli implementatori che aspetta in primo piano tornano (vincolo della piattaforma): nel frattempo è il segnale a impedire lavoro nuovo. Fermi gli agenti, <code>maestro salvage</code> mette in commit il lavoro a metà sui rami <code>wip/…</code>. Poi aggiorna tracker, <code>handoff.md</code> e registro eventi e fa il commit. Il push lo autorizza l'owner.</li>
+  <li><b>Pausa</b> (skill del PM): accende il segnale di pausa con <code>maestro pause --on</code> (<code>.maestro/runtime/pause.json</code>, fuori da git), che blocca nel codice claim nuovi e lanci di agenti <code>maestro:*</code>; poi aspetta gli agenti, oppure li ferma a un punto pulito. Il messaggio di pausa raggiunge l'architetto solo quando gli implementatori che aspetta in primo piano tornano (vincolo della piattaforma): nel frattempo è il segnale a impedire lavoro nuovo. Fermi gli agenti, <code>maestro salvage</code> mette in commit il lavoro a metà sui rami <code>wip/…</code>. Poi aggiorna tracker, <code>handoff.md</code> e registro eventi e fa il commit su <code>master</code>. Il push lo autorizza l'owner.</li>
   <li><b>Riprendi</b>, su qualsiasi PC dopo il clone: controlla il consumo (sopra la fascia alta non riprende), esegue <code>maestro salvage</code> per il lavoro rimasto nelle worktree, legge <code>handoff.md</code>, tracker e rami WIP, ricrea le worktree, spegne la pausa con <code>maestro pause --off</code> e continua, sempre con il controllo del consumo prima di ogni lancio.</li>
 </ol>
 </section>

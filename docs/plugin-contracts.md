@@ -38,7 +38,7 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
 | `.maestro/reports/<kind>/<id>.md` | yes | `task/<task-id>.md` (implementer report, saved by the architect at integration), `qa/QA-n*.md` (PM requirements and QA reports), `review/CR-n.md` (reviewer) |
 | `.maestro/runtime/` | no | usage cache (`usage.json`), pause flag (`pause.json`), interruption marker (`interrupted.json`), hook band state, misc runtime |
 | `<git-common-dir>/maestro-locks/<task-id>/` | no | claim locks, shared by all worktrees |
-| `.claude/worktrees/<name>/` | no | implementer worktrees (`impl-n`); detached QA and review snapshots (`qa-QA-n`, `cr-CR-n`); may hold links to main-checkout folders (`worktreeSetup`) |
+| `.claude/worktrees/<name>/` | no | implementer worktrees (`impl-n`); the architect's goal worktree (`goal-<G>`: created with `--detach goal/<G>`, then switched to the goal branch; removed by the PM at GOAL close); detached QA and review snapshots (`qa-QA-n`, `cr-CR-n`); may hold links to main-checkout folders (`worktreeSetup`). The main checkout stays on the main branch, where the tracker is committed |
 | `<git-common-dir>/worktrees/<name>/maestro-links.json` | no | folders linked by the worktree setup, read by `--remove`; git deletes it with the worktree |
 | `backlog/` | yes | Backlog.md tracker |
 | `docs/adr/` | yes | architecture decision records |
