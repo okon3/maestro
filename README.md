@@ -28,7 +28,16 @@ Add this to the project's `.claude/settings.json` and commit it:
 }
 ```
 
-Open the project in Claude Code, accept the workspace trust prompt, and run `/reload-plugins` if the plugin does not appear yet. Then run `/maestro:init` once. After that, start each session with `/maestro:pm`.
+The quickest way to write it is to run these two commands from the project folder:
+
+```bash
+claude plugin marketplace add okon3/maestro --scope project
+claude plugin install maestro@okon3 --scope project
+```
+
+Then add `"autoUpdate": true` to the `okon3` entry, because `marketplace add` does not write it. On another PC, after cloning, accept the workspace trust prompt and run `claude plugin install maestro@okon3 --scope project` once. Each machine keeps its own install record, and a headless `claude -p` session does not register project marketplaces by itself (verified on 2026-11-06 with Claude Code 2.1.319).
+
+Then run `/maestro:init` once (it also adapts an existing project, on a `maestro-setup` branch, with your approval). After that, start each session with `/maestro:pm`.
 
 ## Develop
 

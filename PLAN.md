@@ -28,7 +28,7 @@ Design and source of truth: `team-workflow/flusso-team-agenti.html`.
 | --- | --- | --- | --- |
 | M-1 Experiments | TASK-1 | Done | Backlog.md chosen; hooks, context, compaction, nesting and usage verified |
 | M-0 Project setup | TASK-2 | Done | Rules, tracker, decisions and spec v3 for this repo |
-| M-2 Minimal plugin | TASK-3 | Queued | Plugin runs a GOAL end to end; Agriturismo migrated |
+| M-2 Minimal plugin | TASK-3 | Done | Plugin published on okon3/maestro, validated in two lab runs; Agriturismo adopted Maestro |
 | M-3 Dashboard | TASK-4 | Queued | Local read-only dashboard per project |
 | M-4 Pilot on Agriturismo 7C | TASK-5 | Queued | 7C delivered with Maestro, compared with 7B |
 | M-5 Evaluation harness | TASK-6 | Proposed | Repeatable measurement of Maestro iterations |
@@ -38,3 +38,7 @@ Design and source of truth: `team-workflow/flusso-team-agenti.html`.
 - Decisions: `backlog/decisions/` (decision-1 to decision-18, 2026-11-06).
 - Research: `research/` (Claude Code, Paseo, trackers, bake-off, hook prototypes).
 - History: `archive/` (wayfinder map superseded on 2026-11-06, original handoff), `prompts/` (orchestrator v1–v4).
+
+## History
+
+- 2026-11-06: M-1 experiments and M-0 setup done; M-2 minimal plugin published (`done/TASK-3`), Agriturismo adopted Maestro.

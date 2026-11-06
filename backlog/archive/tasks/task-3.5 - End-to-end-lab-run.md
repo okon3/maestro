@@ -1,11 +1,11 @@
 ---
 id: TASK-3.5
 title: End-to-end lab run
-status: Integrated
+status: Done
 assignee:
   - '@architect'
 created_date: '2026-11-06T14:30:00Z'
-updated_date: '2026-11-06T14:54:00Z'
+updated_date: '2026-11-06T14:56:00Z'
 labels: []
 dependencies:
   - TASK-3.4

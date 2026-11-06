@@ -1,10 +1,10 @@
 ---
 id: TASK-3.8
 title: Adoption of existing repositories in init
-status: Integrated
+status: Done
 assignee: []
 created_date: '2026-11-06T14:41:00Z'
-updated_date: '2026-11-06T14:48:00Z'
+updated_date: '2026-11-06T14:56:00Z'
 labels: []
 dependencies:
   - TASK-3.4
