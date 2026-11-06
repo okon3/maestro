@@ -8,9 +8,23 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gitCommonDir, loadConfig } from "./lib/config.mjs";
 import { appendEvent, readEvents } from "./lib/events.mjs";
-import { backlogVersion, editTask, listTasks, runTool, viewTask } from "./lib/backlog.mjs";
+import { backlogVersion, editTask, listTasks, viewTask } from "./lib/backlog.mjs";
 import { DEFAULT_PORT, runtimeFile, startServer } from "./dashboard/server.mjs";
 import { branchExists, git, refExists, worktreeBranch, worktreePath } from "./lib/git.mjs";
+import {
+  clearInterrupted,
+  clearPause,
+  formatReset,
+  interruptedNotice,
+  probeUsage,
+  readInterrupted,
+  readPause,
+  readUsageSample,
+  recordUsageSample,
+  setPause,
+  usageBands,
+  usageGate,
+} from "./lib/usage.mjs";
 
 class CliError extends Error {
   constructor(message, code = 1) {
@@ -19,7 +33,7 @@ class CliError extends Error {
   }
 }
 
-const BOOLEAN_FLAGS = new Set(["json", "probe", "reuse", "no-open", "stop", "foreground"]);
+const BOOLEAN_FLAGS = new Set(["json", "probe", "check", "reuse", "no-open", "stop", "foreground", "on", "off"]);
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function parseArgs(argv) {
@@ -83,32 +97,8 @@ function readOwner(dir) {
   }
 }
 
-const formatUsage = (s) => `five-hour ${s.fiveHour ?? "?"}%, seven-day ${s.sevenDay ?? "?"}%, resets ${s.resetsAt ?? "?"} (sampled ${s.ts})`;
-
-// Runs a tiny `claude -p` call (stdin ignored) and reads the rate_limit_event lines. Percentages are 0-100.
-function probeUsage(root) {
-  const args = ["-p", "Reply OK", "--output-format", "stream-json", "--verbose", "--model", "haiku", "--no-session-persistence"];
-  const r = runTool("claude", args, { cwd: root, timeout: 120000 });
-  if (r.error) throw new CliError(`cannot run claude: ${r.error.message}`);
-  const windows = {};
-  for (const line of r.stdout.split("\n")) {
-    if (!line.includes("rate_limit_event")) continue;
-    try {
-      Object.assign(windows, JSON.parse(line).rate_limit_info?.unifiedWindows ?? {});
-    } catch {
-      // not a JSON line
-    }
-  }
-  const pct = (w) => (typeof w?.utilization === "number" ? Math.round(w.utilization * 1000) / 10 : null);
-  const five = windows.five_hour;
-  if (!five && !windows.seven_day) throw new CliError("probe returned no rate_limit_event");
-  return {
-    ts: new Date().toISOString(),
-    fiveHour: pct(five),
-    sevenDay: pct(windows.seven_day),
-    resetsAt: five?.resetsAt ?? five?.resets_at ?? null,
-  };
-}
+const formatUsage = (s) =>
+  `five-hour ${s.fiveHour ?? "?"}%, seven-day ${s.sevenDay ?? "?"}%, resets ${s.resetsAt == null ? "?" : formatReset(s.resetsAt)} (sampled ${s.ts})`;
 
 function readRecordedDashboard(file) {
   try {
@@ -208,7 +198,7 @@ const COMMANDS = {
   claim([task], flags) {
     const id = requireName(task, "task id").toUpperCase();
     const actor = requireName(flags.actor, "--actor");
-    const { root } = context();
+    const { root, config } = context();
     const deny = (reason) => {
       appendEvent(root, "task.claim_denied", { actor, task: id, data: { reason } });
       out(flags, { claimed: false, task: id, reason }, `claim denied for ${id}: ${reason}`);
@@ -216,6 +206,20 @@ const COMMANDS = {
     };
     const locks = join(gitCommonDir(root), "maestro-locks");
     const lock = join(locks, id);
+    // The actor already holds this claim (resumed after needs_context): nothing new starts, so no gate.
+    if (existsSync(lock) && readOwner(lock).actor === actor) {
+      out(flags, { claimed: true, task: id, actor, held: true }, `${id} is already claimed by ${actor}`);
+      return 0;
+    }
+    // Usage gate: no new work at or above the top usage band, or while a pause is active.
+    const gate = usageGate(root, config, { timeout: 60000 });
+    if (!gate.allow) {
+      appendEvent(root, "task.claim_denied", { actor, task: id, data: { reason: gate.reason, gate: gate.level } });
+      const advice = "Do not retry: stop, commit work in progress and report to whoever launched you.";
+      out(flags, { claimed: false, task: id, reason: gate.reason, gate: gate.level }, `claim denied for ${id}: ${gate.reason}. ${advice}`);
+      return 2;
+    }
+    if (gate.level === "unknown") console.error(`maestro: ${gate.note}`);
     mkdirSync(locks, { recursive: true });
     try {
       mkdirSync(lock); // atomic: fails with EEXIST when another claim holds the lock
@@ -289,22 +293,59 @@ const COMMANDS = {
   },
 
   usage(args, flags) {
-    const { root } = context();
-    const file = join(root, ".maestro", "runtime", "usage.json");
+    const { root, config } = context();
+    if (flags.check) {
+      // The gate used by claims and the agent-launch hook, with the action for each level.
+      const gate = usageGate(root, config);
+      const { lower, top } = usageBands(config);
+      const actions = {
+        ok: "go ahead",
+        unknown: `${gate.note}; go ahead with care`,
+        lower: `at or above the lower band ${lower}%: start no long agents and no new wave; only finish work in flight`,
+        top: `${gate.reason}: launch nothing, claim nothing; finish or stop work in flight and report (PM: use the maestro:pause skill)`,
+        paused: `${gate.reason}: launch nothing, claim nothing (\`maestro pause --off\` ends it)`,
+      };
+      const usage = gate.sample ? `${formatUsage(gate.sample)}; ` : "";
+      out(flags, { level: gate.level, allow: gate.allow, lower, top, sample: gate.sample, source: gate.source, reason: gate.reason ?? gate.note }, `${gate.level.toUpperCase()}: ${usage}${actions[gate.level]}`);
+      return gate.allow ? 0 : 2;
+    }
     if (flags.probe) {
-      const sample = probeUsage(root);
-      mkdirSync(join(root, ".maestro", "runtime"), { recursive: true });
-      writeFileSync(file, JSON.stringify(sample, null, 2));
-      appendEvent(root, "usage.sample", { actor: "usage", data: { fiveHour: sample.fiveHour, sevenDay: sample.sevenDay, resetsAt: sample.resetsAt } });
+      let sample;
+      try {
+        sample = probeUsage(root);
+      } catch (e) {
+        throw new CliError(e.message);
+      }
+      recordUsageSample(root, sample);
       out(flags, sample, formatUsage(sample));
       return 0;
     }
-    if (!existsSync(file)) {
+    const sample = readUsageSample(root);
+    if (!sample) {
       out(flags, { sample: null }, "no usage sample yet (run `maestro usage --probe`)");
       return 0;
     }
-    const sample = JSON.parse(readFileSync(file, "utf8"));
     out(flags, sample, formatUsage(sample));
+    return 0;
+  },
+
+  pause(args, flags) {
+    const { root } = context();
+    if (flags.on && flags.off) throw new CliError("use either --on or --off");
+    if (flags.on) {
+      const flag = setPause(root, { reason: flags.reason ?? null, actor: flags.actor ?? null });
+      appendEvent(root, "session.pause", { actor: flags.actor, data: { phase: "start", reason: flag.reason } });
+      out(flags, { paused: true, ...flag }, `pause on since ${flag.since}: new claims and Maestro agent launches are refused`);
+      return 0;
+    }
+    if (flags.off) {
+      const was = clearPause(root);
+      appendEvent(root, "session.pause", { actor: flags.actor, data: { phase: "off" } });
+      out(flags, { paused: false, was }, was ? `pause off (was on since ${was.since})` : "pause off (was not on)");
+      return 0;
+    }
+    const flag = readPause(root);
+    out(flags, { paused: !!flag, ...(flag ?? {}) }, flag ? `paused since ${flag.since}${flag.reason ? ` (${flag.reason})` : ""}` : "not paused");
     return 0;
   },
 
@@ -405,14 +446,17 @@ const COMMANDS = {
     } catch (e) {
       tasksError = e.message;
     }
-    const locks = join(gitCommonDir(root), "maestro-locks");
-    const claims = existsSync(locks) ? readdirSync(locks).map((id) => ({ task: id, ...readOwner(join(locks, id)) })) : [];
+    const claims = activeClaims(root);
     const events = readEvents(root);
     const last = (type) => [...events].reverse().find((e) => e.type === type) ?? null;
     const goal = [...events].reverse().find((e) => e.goal)?.goal ?? null;
-    const result = { goal, tasks: byStatus, tasksError, claims, lastUsage: last("usage.sample"), lastContext: last("context.band") };
+    const pause = readPause(root);
+    const interrupted = readInterrupted(root);
+    const result = { goal, tasks: byStatus, tasksError, claims, lastUsage: last("usage.sample"), lastContext: last("context.band"), pause, interrupted };
     if (flags.json) console.log(JSON.stringify(result));
     else {
+      if (interrupted) console.log(interruptedNotice(interrupted));
+      if (pause) console.log(`PAUSED since ${pause.since}${pause.reason ? ` (${pause.reason})` : ""}: new claims and Maestro agent launches are refused`);
       console.log(`goal: ${goal ?? "-"}`);
       if (tasksError) console.log(`tasks unavailable: ${tasksError}`);
       for (const [s, list] of Object.entries(byStatus)) {
@@ -426,7 +470,68 @@ const COMMANDS = {
     }
     return 0;
   },
+
+  // Saves uncommitted work of implementer worktrees (after a usage-limit stop or before a pause) on wip/<task>.
+  // Runs git only inside .claude/worktrees/impl-*: the main checkout is never touched.
+  salvage(args, flags) {
+    const { root } = context();
+    const dir = join(root, ".claude", "worktrees");
+    const claims = activeClaims(root);
+    const results = [];
+    const names = existsSync(dir) ? readdirSync(dir).filter((n) => /^impl-/.test(n) && existsSync(join(dir, n, ".git"))) : [];
+    for (const name of names) {
+      const wt = join(dir, name);
+      try {
+        const changes = git(wt, ["status", "--porcelain"]).split("\n").filter(Boolean);
+        if (!changes.length) {
+          results.push({ worktree: name, salvaged: false, reason: "clean" });
+          continue;
+        }
+        // The task of the worktree's active claim (its actor is the worktree name); else the worktree name.
+        const claim = claims.filter((c) => c.actor === name).sort((a, b) => String(b.ts).localeCompare(String(a.ts)))[0];
+        const task = claim?.task ?? name;
+        git(wt, ["add", "-A"]);
+        // --no-verify: work in progress may not pass the project's commit hooks, and it must be saved anyway.
+        git(wt, ["commit", "-q", "--no-verify", "-m", `WIP ${task}: salvaged by maestro salvage${flags.reason ? ` (${flags.reason})` : ""}`]);
+        const commit = git(wt, ["rev-parse", "HEAD"]);
+        let branch = `wip/${task}`;
+        // Never move an existing wip branch off commits it holds: use a distinct name instead.
+        if (branchExists(wt, branch) && !isAncestor(wt, branch, commit)) branch = `wip/${task}-${commit.slice(0, 7)}`;
+        git(wt, ["branch", "-f", branch, commit]);
+        appendEvent(root, "work.salvaged", { actor: flags.actor ?? "pm", task: claim?.task, data: { worktree: name, branch, commit, files: changes.length } });
+        results.push({ worktree: name, salvaged: true, task, branch, commit, files: changes.length });
+      } catch (e) {
+        results.push({ worktree: name, salvaged: false, error: e.message });
+      }
+    }
+    const failed = results.filter((r) => r.error);
+    if (!failed.length) clearInterrupted(root);
+    if (flags.json) console.log(JSON.stringify({ results }));
+    else if (!results.length) console.log("no implementer worktrees under .claude/worktrees");
+    else {
+      for (const r of results) {
+        if (r.salvaged) console.log(`${r.worktree}: ${r.files} file(s) committed on ${r.branch} at ${r.commit.slice(0, 7)} (task ${r.task})`);
+        else console.log(`${r.worktree}: ${r.error ? `FAILED ${r.error}` : "clean, nothing to save"}`);
+      }
+    }
+    return failed.length ? 1 : 0;
+  },
 };
+
+/** Active claims: one lock directory per task, with `owner.json` once the claim succeeded. */
+function activeClaims(root) {
+  const locks = join(gitCommonDir(root), "maestro-locks");
+  return existsSync(locks) ? readdirSync(locks).map((id) => ({ task: id, ...readOwner(join(locks, id)) })) : [];
+}
+
+function isAncestor(cwd, a, b) {
+  try {
+    git(cwd, ["merge-base", "--is-ancestor", a, b]);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export async function main(argv) {
   const [cmd, ...rest] = argv;

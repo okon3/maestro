@@ -42,6 +42,19 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/usage-gate.mjs"
+            ],
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [

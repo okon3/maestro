@@ -15,8 +15,17 @@ const DEBOUNCE_MS = 500;
 const HEARTBEAT_MS = 25000;
 // Usage is refreshed by the dashboard itself while a page is open, so it stays current when the PM is busy.
 // Each probe is one minimal `claude -p` call on the cheapest model (`maestro usage --probe`).
+// Near the limit the gates (claims, agent launches) need a recent sample: sample every 2 minutes from 80%.
 const USAGE_REFRESH_MS = 10 * 60 * 1000;
+const USAGE_DENSE_REFRESH_MS = 2 * 60 * 1000;
+const USAGE_DENSE_FROM = 80;
 const USAGE_CHECK_MS = 60 * 1000;
+
+/** How old the usage sample may get before the dashboard probes again: 2 minutes from 80% (either window), else 10. */
+export function usageRefreshMs(sample) {
+  const high = [sample?.fiveHour, sample?.sevenDay].some((p) => typeof p === "number" && p >= USAGE_DENSE_FROM);
+  return high ? USAGE_DENSE_REFRESH_MS : USAGE_REFRESH_MS;
+}
 const PORT_ATTEMPTS = 20;
 const DEFAULT_PUBLIC = join(dirname(fileURLToPath(import.meta.url)), "public");
 const MIME = {
@@ -186,18 +195,18 @@ export async function startServer({ root, port = DEFAULT_PORT, publicDir = DEFAU
   }, heartbeatMs);
   heartbeat.unref();
 
-  // Usage probe: only while at least one page is connected and the last sample is older than 10 minutes.
+  // Usage probe: only while at least one page is connected and the last sample is older than usageRefreshMs.
   let probing = false;
-  const usageAge = () => {
+  const usageDue = () => {
     try {
       const u = JSON.parse(readFileSync(join(root, ".maestro", "runtime", "usage.json"), "utf8"));
-      return Date.now() - Date.parse(u.ts);
+      return !(Date.now() - Date.parse(u.ts) < usageRefreshMs(u));
     } catch {
-      return Infinity;
+      return true;
     }
   };
   const probeUsage = () => {
-    if (!usageProbe || probing || !clients.size || usageAge() < USAGE_REFRESH_MS) return;
+    if (!usageProbe || probing || !clients.size || !usageDue()) return;
     probing = true;
     const cli = fileURLToPath(new URL("../cli.mjs", import.meta.url));
     const child = spawn(process.execPath, [cli, "usage", "--probe"], { cwd: root, stdio: "ignore", windowsHide: true });
