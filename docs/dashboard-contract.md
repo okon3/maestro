@@ -38,9 +38,11 @@ Owned by the M-3 architect. Design intent: `team-workflow/flusso-team-agenti.htm
     "review": { "integratedSinceLast": 9, "every": 15, "lastTag": "cr/CR-1" },
     "context": { "percent": 48.2, "ts": "ISO", "stale": false },
     "usage": { "fiveHour": 62, "sevenDay": 31, "resetsAt": 1793988600, "ts": "ISO", "stale": false },
-    "ownerWaiting": 1
+    "ownerWaiting": 1,
+    "ownerQuestions": 2
   },
-  "milestones": [ { "id": "m-1", "title": "...", "description": "...", "archived": false,
+  "milestones": [ { "id": "m-1", "title": "...", "description": "...", "archived": false, "completed": false,
+                    "tasks": [ { "id": "TASK-9", "title": "...", "status": "To Do" } ],
                     "goals": [ { "id": "TASK-1", "title": "...", "status": "In Progress", "labels": [], "proposed": false,
                                  "done": 3, "total": 7, "dependencies": ["TASK-9"], "archived": false } ],
                     "drafts": [ { "id": "draft-3", "title": "..." } ] } ],
@@ -48,8 +50,9 @@ Owned by the M-3 architect. Design intent: `team-workflow/flusso-team-agenti.htm
                "dependencies": ["TASK-1.1"], "scope": ["src/map/**"], "acDone": 1, "acTotal": 4,
                "updatedAt": "ISO", "archived": false } ],
   "agents": [ { "agentId": "a1b2", "type": "maestro:implementer", "actor": "impl-1", "task": "TASK-1.2",
+                "mission": null, "model": "claude-opus-5-5", "modelPlanned": false,
                 "state": "running", "since": "ISO", "until": null } ],
-  "decisions": [ { "id": "decision-1", "title": "...", "status": "open", "date": "ISO", "path": "backlog/decisions/decision-1 - Title.md" } ],
+  "decisions": [ { "id": "decision-1", "title": "...", "status": "open", "date": "ISO", "path": "backlog/decisions/decision-1 - Title.md", "blocking": false } ],
   "reports": [ { "kind": "qa", "id": "QA-1", "path": ".maestro/reports/qa/QA-1.md", "title": "...", "mtime": "ISO" } ],
   "costs": {
     "estimate": true,
@@ -72,7 +75,10 @@ Owned by the M-3 architect. Design intent: `team-workflow/flusso-team-agenti.htm
 Rules:
 
 - **Active GOAL:** the task labelled `goal` with status In Progress. If there are several, take the most recently updated.
-- **`header.ownerWaiting`:** decisions with status `open` or `proposed`, plus Blocked tasks.
+- **`header.ownerWaiting`:** blocking items: Blocked tasks plus open or `proposed` decisions that are *blocking*. A decision is `blocking` (`decisions[].blocking`) when a task text or references name its id (`decision-<n>`) and that task is the active GOAL, one of its tasks, or a Blocked task. **`header.ownerQuestions`** counts the other open decisions (questions that can wait). The Decisions tab groups them: Blocking, Open questions, Settled.
+- **Milestones:** `completed` is true when the milestone has GOALs and all are done; its drafts do not keep it active (the page folds completed milestones away). `tasks` lists the non-archived tasks that are not GOALs and have no parent GOAL, under their own milestone, or in the "No milestone" entry when they name none.
+- **Agent `mission`:** for `maestro:qa-explorer` and `maestro:code-reviewer`, the `data.qa` / `data.review` id (QA-1, CR-1) of the latest `qa.start` / `review.start` event at or before the agent's start; null otherwise.
+- **Agent `model`:** the model with the largest token share in the usage of the agent's latest `agent.stop`; else `data.model` of its `agent.bind` (recorded by the hook at claim time from the subagent transcript); else planned: the `Modello:` / `model:` line in the task text (`opus`, `sonnet`, `haiku`), else the agent definition default (implementer sonnet, architect opus). `modelPlanned` is true only for the last two. QA and reviewer agents have no default (null) until they stop.
 - **Review counter:** `task.status` events to `Integrated` after the date of the latest `cr/CR-*` tag (all of them if there is no tag).
 - **Agents:** pair `agent.start` and `agent.stop` events by `agentId`. Link an agent to its task and actor in this order: `task.measure` agent ids, then `agent.bind` (exact, written by the hook at claim time), then for a stopped implementer the latest `task.release` in the 2 minutes before its stop, and only then the time-order heuristic below (parallel agents can start in the same millisecond). Running means no stop yet and a start less than 12 hours old. Link an agent to a task and actor through the nearest `task.claim` that follows its start within 2 minutes, by the same actor's claim.
 - **Usage refresh:** while at least one page is connected, the server runs `maestro usage --probe` when the last sample is older than 10 minutes (checked every minute). Each probe is one minimal `claude -p` call on the cheapest model. A resumed agent (a second `agent.start` with the same id) counts as running again.

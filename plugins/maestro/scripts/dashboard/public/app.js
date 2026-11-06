@@ -141,6 +141,13 @@ function plural(n, one, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/** "Opus 5.5" for a measured model; "planned: Opus" (muted) for a family named only in the plan. */
+function modelTag(model, planned) {
+  if (!model) return "";
+  const name = planned ? String(model).replace(/^./, (c) => c.toUpperCase()) : modelName(model);
+  return `<span class="model-tag${planned ? " is-planned" : ""}" title="${esc(planned ? `Planned model (not yet measured): ${model}` : model)}">${esc(planned ? `planned: ${name}` : name)}</span>`;
+}
+
 function modelName(id) {
   const m = /^claude-([a-z]+)-(\d+)-(\d+)(.*)$/.exec(id || "");
   if (!m) return id || "unknown";
@@ -317,15 +324,17 @@ function usagePart(label, pct) {
 
 function ownerGauge(s, count) {
   const n = Number(count) || 0;
+  const questions = Number(s.header?.ownerQuestions) || 0;
   const { decisions, tasks } = lists(s);
-  const open = decisions.filter((d) => OWNER_STATUSES.has(d.status)).length;
+  const open = decisions.filter((d) => d.blocking).length;
   const blocked = tasks.filter((t) => t.status === "Blocked" && !t.archived).length;
   const parts = [];
   if (open) parts.push(plural(open, "decision"));
   if (blocked) parts.push(plural(blocked, "blocked task"));
+  const more = questions ? `<span class="gauge-sub quiet-count">${plural(questions, "open question")}, not blocking</span>` : "";
   const body = n
-    ? `<span class="gauge-value"><strong>${n}</strong></span><span class="gauge-sub">${esc(parts.join(", ") || "items")}</span>`
-    : `<span class="gauge-value muted">Nothing</span><span class="gauge-sub">No decision or block needs you</span>`;
+    ? `<span class="gauge-value"><strong>${n}</strong></span><span class="gauge-sub">${esc(parts.join(", ") || "items")} blocking</span>${more}`
+    : `<span class="gauge-value muted">Nothing blocking</span><span class="gauge-sub">No decision or block stops the work</span>${more}`;
   return `<button type="button" class="gauge g-owner${n ? " lvl-owner" : ""}" data-goto="decisions" id="owner-gauge"><span class="gauge-label">Waiting for you</span>${body}</button>`;
 }
 
@@ -341,7 +350,7 @@ function tabCount(s, id) {
     case "agents":
       return l.agents.filter((a) => a.state === "running").length || null;
     case "decisions":
-      return l.decisions.filter((d) => OWNER_STATUSES.has(d.status)).length || null;
+      return l.decisions.filter((d) => d.blocking).length + l.tasks.filter((t) => t.status === "Blocked" && !t.archived).length || null;
     case "reports":
       return l.reports.length || null;
     default:
@@ -365,10 +374,14 @@ function renderRoadmap(s) {
   if (!milestones.length) return empty("No milestones yet", "Milestones and their GOALs appear here once the PM plans them in <code>backlog/milestones/</code>.");
   const goals = goalIndex(s);
   const activeId = s.header?.activeGoal?.id;
-  const live = milestones.filter((m) => !m.archived);
+  const live = milestones.filter((m) => !m.archived && !m.completed);
+  const completed = milestones.filter((m) => !m.archived && m.completed);
   const archived = milestones.filter((m) => m.archived);
   let html = live.map((m) => milestoneBlock(m, goals, activeId)).join("");
-  if (!live.length) html += empty("Every milestone is archived", "");
+  if (!live.length) html += empty(completed.length ? "Every milestone is completed" : "Every milestone is archived", "");
+  if (completed.length) {
+    html += details("completed-milestones", `Completed milestones <span class="count">${completed.length}</span>`, completed.map((m) => milestoneBlock(m, goals, activeId)).join(""), "archived");
+  }
   if (archived.length) {
     html += details("archived-milestones", `Archived milestones <span class="count">${archived.length}</span>`, archived.map((m) => milestoneBlock(m, goals, activeId)).join(""), "archived");
   }
@@ -385,9 +398,16 @@ function milestoneBlock(m, goals, activeId) {
   const draftBlock = drafts.length
     ? details(`drafts-${m.id}`, `${plural(drafts.length, "draft")}`, `<ul class="drafts">${drafts.map((d) => `<li>${idEl(d.id)} ${esc(d.title)}</li>`).join("")}</ul>`, "drafts-box")
     : "";
-  return `<section class="milestone${m.archived ? " is-archived" : ""}">
-    <header class="ms-head"><h2>${esc(m.title || m.id || "No milestone")}</h2><p class="ms-count">${list.length ? `${doneGoals} of ${plural(list.length, "GOAL")} done` : ""}</p>${m.description ? `<p class="ms-desc">${esc(m.description)}</p>` : ""}</header>
-    ${rows}${draftBlock}</section>`;
+  const loose = m.tasks || [];
+  const looseBlock = loose.length
+    ? `<div class="loose-tasks"><h3 class="loose-head">No GOAL <span class="count">${loose.length}</span></h3><ul class="loose-list">${loose
+        .map((t) => `<li class="loose-row">${idEl(t.id)}<span class="loose-title">${esc(t.title)}</span><span class="status s-${statusSlug(t.status)}">${esc(t.status)}</span></li>`)
+        .join("")}</ul></div>`
+    : "";
+  const noGoals = !list.length && !loose.length ? `<p class="quiet">No GOALs in this milestone yet.</p>` : "";
+  return `<section class="milestone${m.archived ? " is-archived" : ""}${m.completed ? " is-completed" : ""}">
+    <header class="ms-head"><h2>${esc(m.title || m.id || "No milestone")}</h2>${m.completed ? `<span class="badge b-done">completed</span>` : ""}<p class="ms-count">${list.length ? `${doneGoals} of ${plural(list.length, "GOAL")} done` : ""}</p>${m.description ? `<p class="ms-desc">${esc(m.description)}</p>` : ""}</header>
+    ${list.length ? rows : noGoals}${looseBlock}${draftBlock}</section>`;
 }
 
 function goalRow(g, goals, activeId) {
@@ -456,7 +476,7 @@ function taskCard(t, statusOf, running, showGoal) {
     <p class="card-top">${idEl(t.id)}${showGoal && t.goal ? `<span class="card-goal">${esc(t.goal)}</span>` : ""}${t.archived ? `<span class="badge b-archived">archived</span>` : ""}</p>
     <h3 class="card-title">${esc(t.title)}</h3>
     ${acTotal ? `<div class="ac" title="${acDone} of ${acTotal} acceptance criteria met: the implementer checks each one when its named test passes; the architect re-checks them at review"><div class="meter"><span style="width:${Math.round((acDone / acTotal) * 100)}%"></span></div><span class="frac">criteria ${acDone}/${acTotal}</span></div>` : ""}
-    ${who || agent ? `<p class="card-who">${who}${agent ? `<span class="working" title="Agent ${esc(agent.agentId)} running">working ${timeEl(agent.since, "since")}</span>` : ""}</p>` : ""}
+    ${who || agent ? `<p class="card-who">${who}${agent ? `<span class="working" title="Agent ${esc(agent.agentId)} running">working ${timeEl(agent.since, "since")}</span>${modelTag(agent.model, agent.modelPlanned)}` : ""}</p>` : ""}
     ${deps.length ? `<p class="deps">${deps.join("")}</p>` : ""}
   </article>`;
 }
@@ -464,12 +484,12 @@ function taskCard(t, statusOf, running, showGoal) {
 // ---------- agents ----------
 
 // What an agent without a claimed task is doing: only implementers claim tasks.
-function agentDuty(roleKey, goal) {
+function agentDuty(roleKey, goal, mission) {
   const g = goal ? ` ${idEl(goal.id)}` : "";
   const text = {
     arch: `Leading GOAL${g}: planning waves, reviewing, integrating`,
-    qa: `Exploratory QA mission${g ? ` for${g}` : ""}`,
-    rev: "Periodic code review",
+    qa: mission ? `Exploratory QA ${idEl(mission)}` : `Exploratory QA mission${g ? ` for${g}` : ""}`,
+    rev: mission ? `Code review ${idEl(mission)}` : "Periodic code review",
     impl: "Starting: no task claimed yet",
   }[roleKey];
   return text ?? `<span class="quiet">No task claimed</span>`;
@@ -488,18 +508,18 @@ function renderAgents(s) {
     ? `<div class="agent-grid">${running
         .map((a) => {
           const r = roleOf(a.type, a.actor);
-          return `<article class="agent r-${r.key}"><p class="agent-head"><span class="pulse" aria-hidden="true"></span><strong>${esc(a.actor || r.label)}</strong><span class="agent-role">${esc(r.label)}</span></p>
-          <p class="agent-task">${a.task ? `${idEl(a.task)} ${esc(titles.get(a.task) || "")}` : agentDuty(r.key, s.header?.activeGoal)}</p>
+          return `<article class="agent r-${r.key}"><p class="agent-head"><span class="pulse" aria-hidden="true"></span><strong>${esc(a.actor || r.label)}</strong><span class="agent-role">${esc(r.label)}</span>${modelTag(a.model, a.modelPlanned)}</p>
+          <p class="agent-task">${a.task ? `${idEl(a.task)} ${esc(titles.get(a.task) || "")}` : agentDuty(r.key, s.header?.activeGoal, a.mission)}</p>
           <p class="agent-since">Running for <strong>${timeEl(a.since, "since")}</strong><span class="quiet"> since ${esc(clockTime(a.since))}</span></p></article>`;
         })
         .join("")}</div>`
     : `<p class="quiet block">No agent is running right now.</p>`;
   const table = recent.length
-    ? `<table class="data"><thead><tr><th scope="col">Agent</th><th scope="col">Role</th><th scope="col">Task</th><th scope="col">Started</th><th scope="col" class="num">Ran for</th><th scope="col">Finished</th></tr></thead><tbody>${recent
+    ? `<table class="data"><thead><tr><th scope="col">Agent</th><th scope="col">Role</th><th scope="col">Model</th><th scope="col">Task</th><th scope="col">Started</th><th scope="col" class="num">Ran for</th><th scope="col">Finished</th></tr></thead><tbody>${recent
         .map((a) => {
           const r = roleOf(a.type, a.actor);
           const ran = toMs(a.until) != null && toMs(a.since) != null ? fmtDuration(toMs(a.until) - toMs(a.since)) : "–";
-          return `<tr><td><span class="role-dot r-${r.key}"></span>${esc(a.actor || a.agentId)}</td><td>${esc(r.label)}</td><td>${a.task ? `${idEl(a.task)} <span class="quiet">${esc(shortTitle(titles.get(a.task) || ""))}</span>` : `<span class="quiet">none</span>`}</td><td>${esc(clockTime(a.since))} <span class="quiet">${esc(dayLabel(a.since))}</span></td><td class="num">${ran}</td><td>${a.until ? timeEl(a.until) : `<span class="quiet">${esc(a.state || "unknown")}</span>`}</td></tr>`;
+          return `<tr><td><span class="role-dot r-${r.key}"></span>${esc(a.actor || a.agentId)}</td><td>${esc(r.label)}</td><td>${modelTag(a.model, a.modelPlanned) || `<span class="quiet">unknown</span>`}</td><td>${a.task ? `${idEl(a.task)} <span class="quiet">${esc(shortTitle(titles.get(a.task) || ""))}</span>` : a.mission ? `${idEl(a.mission)} <span class="quiet">${r.key === "qa" ? "QA mission" : "code review"}</span>` : `<span class="quiet">none</span>`}</td><td>${esc(clockTime(a.since))} <span class="quiet">${esc(dayLabel(a.since))}</span></td><td class="num">${ran}</td><td>${a.until ? timeEl(a.until) : `<span class="quiet">${esc(a.state || "unknown")}</span>`}</td></tr>`;
         })
         .join("")}</tbody></table>`
     : `<p class="quiet block">No finished agents yet.</p>`;
@@ -524,22 +544,26 @@ function dayLabel(iso) {
 function renderDecisions(s) {
   const { decisions } = lists(s);
   if (!decisions.length) return empty("No decisions recorded", "Decisions land in <code>backlog/decisions/</code>; open ones wait here for you.");
-  const sorted = [...decisions].sort((a, b) => Number(OWNER_STATUSES.has(b.status)) - Number(OWNER_STATUSES.has(a.status)) || (toMs(b.date) ?? 0) - (toMs(a.date) ?? 0));
-  const waiting = sorted.filter((d) => OWNER_STATUSES.has(d.status)).length;
-  const head = waiting
-    ? `<p class="callout owner">${plural(waiting, "decision")} ${waiting === 1 ? "is" : "are"} waiting for you. Answer the PM in the session; the page updates when the file changes.</p>`
-    : `<p class="callout calm">Nothing is waiting for you.</p>`;
-  const rows = sorted
-    .map((d) => {
-      const owner = OWNER_STATUSES.has(d.status);
-      const title = d.path
-        ? `<button type="button" class="link" data-report="${esc(d.path)}" data-title="${esc(d.title)}">${esc(d.title)}</button>`
-        : `<span>${esc(d.title)}</span>`;
-      const open = d.path && ui.report?.path === d.path;
-      return `<li class="decision${owner ? " is-owner" : ""}${open ? " is-open" : ""}"><span class="dec-id">${idEl(d.id)}</span><p class="dec-title">${title}</p><span class="badge d-${statusSlug(d.status)}">${owner ? "waiting for you" : esc(d.status)}</span><span class="dec-date">${timeEl(d.date)}</span></li>${open ? `<li class="dec-viewer">${viewer()}</li>` : ""}`;
-    })
-    .join("");
-  return `${head}<ul class="decisions">${rows}</ul>`;
+  const byDate = (a, b) => (toMs(b.date) ?? 0) - (toMs(a.date) ?? 0);
+  const blocking = decisions.filter((d) => d.blocking).sort(byDate);
+  const questions = decisions.filter((d) => OWNER_STATUSES.has(d.status) && !d.blocking).sort(byDate);
+  const settled = decisions.filter((d) => !OWNER_STATUSES.has(d.status)).sort(byDate);
+  const head = blocking.length
+    ? `<p class="callout owner">${plural(blocking.length, "decision")} ${blocking.length === 1 ? "is" : "are"} blocking the active GOAL. Answer the PM in the session; the page updates when the file changes.</p>`
+    : `<p class="callout calm">No decision is blocking the work.</p>`;
+  const group = (title, hint, list) =>
+    list.length ? `<h2 class="list-head">${esc(title)} <span class="count">${list.length}</span></h2><p class="quiet group-hint">${esc(hint)}</p><ul class="decisions">${list.map(decisionRow).join("")}</ul>` : "";
+  return `${head}${group("Blocking", "Open, and named by the active GOAL, its tasks or a blocked task.", blocking)}${group("Open questions", "Open, but nothing in progress depends on them.", questions)}${group("Settled", "Accepted, rejected or superseded.", settled)}`;
+}
+
+function decisionRow(d) {
+  const owner = d.blocking;
+  const title = d.path
+    ? `<button type="button" class="link" data-report="${esc(d.path)}" data-title="${esc(d.title)}">${esc(d.title)}</button>`
+    : `<span>${esc(d.title)}</span>`;
+  const open = d.path && ui.report?.path === d.path;
+  const label = owner ? "blocking" : OWNER_STATUSES.has(d.status) ? "open question" : d.status;
+  return `<li class="decision${owner ? " is-owner" : ""}${open ? " is-open" : ""}"><span class="dec-id">${idEl(d.id)}</span><p class="dec-title">${title}</p><span class="badge d-${statusSlug(d.status)}">${esc(label)}</span><span class="dec-date">${timeEl(d.date)}</span></li>${open ? `<li class="dec-viewer">${viewer()}</li>` : ""}`;
 }
 
 // ---------- reports ----------
@@ -567,13 +591,33 @@ function stripId(title, id) {
   return id && t.startsWith(`${id} `) ? t.slice(String(id).length + 1) : t;
 }
 
+/** Split a leading YAML front matter block into simple key: value fields (quotes removed) and the body. */
+export function splitFront(src) {
+  const text = String(src ?? "").replace(/\r\n?/g, "\n");
+  const m = /^---[ \t]*\n([\s\S]*?)\n---[ \t]*(?:\n|$)/.exec(text);
+  if (!m) return { fields: {}, body: text };
+  const fields = {};
+  for (const line of m[1].split("\n")) {
+    const kv = /^([A-Za-z_][\w-]*)\s*:\s*(.*)$/.exec(line);
+    if (kv) fields[kv[1].toLowerCase()] = kv[2].trim().replace(/^(["'])(.*)\1$/, "$2");
+  }
+  return { fields, body: text.slice(m[0].length) };
+}
+
 function viewer() {
   const r = ui.report;
   if (!r) return "";
   let body;
   if (r.status === "loading") body = `<p class="quiet">Loading ${esc(r.path)}</p>`;
   else if (r.status === "error" && !r.text) body = `<p class="callout error">Could not load ${esc(r.path)}: ${esc(r.error)}</p>`;
-  else body = `<div class="md">${md(r.text)}</div>${r.status === "error" ? `<p class="quiet">Last refresh failed: ${esc(r.error)}</p>` : ""}`;
+  else if (r.path.startsWith("backlog/decisions/")) {
+    const { fields, body: text } = splitFront(r.text);
+    const dl = ["title", "status", "date"]
+      .filter((k) => fields[k])
+      .map((k) => `<div><dt>${k[0].toUpperCase()}${k.slice(1)}</dt><dd>${k === "date" ? esc(fields[k].slice(0, 10)) : esc(fields[k])}</dd></div>`)
+      .join("");
+    body = `${dl ? `<dl class="stats dec-fields">${dl}</dl>` : ""}<div class="md">${md(text)}</div>${r.status === "error" ? `<p class="quiet">Last refresh failed: ${esc(r.error)}</p>` : ""}`;
+  } else body = `<div class="md">${md(r.text)}</div>${r.status === "error" ? `<p class="quiet">Last refresh failed: ${esc(r.error)}</p>` : ""}`;
   return `<article class="viewer" aria-label="${esc(r.title || r.path)}"><p class="viewer-path">${esc(r.path)}</p>${body}</article>`;
 }
 
@@ -908,8 +952,22 @@ function describeEvent(e) {
     case "goal.done":
       return `closed GOAL ${idEl(e.goal || "")}`;
     default:
-      return `${esc(String(e.type || "event").replace(/[._]/g, " "))}${task ? ` ${task}` : e.goal ? ` ${idEl(e.goal)}` : ""}`;
+      return `${esc(String(e.type || "event"))}${task ? ` ${task}` : e.goal ? ` ${idEl(e.goal)}` : ""}${dataSummary(d)}`;
   }
+}
+
+/** Short readable summary of an event's data: "key: value" pairs, each value and the whole line truncated. */
+export function dataSummary(d, max = 90) {
+  const parts = [];
+  for (const [k, v] of Object.entries(d || {})) {
+    if (v == null || v === "") continue;
+    const text = typeof v === "object" ? JSON.stringify(v) : String(v);
+    parts.push(`${k}: ${text.length > 40 ? `${text.slice(0, 39)}…` : text}`);
+  }
+  if (!parts.length) return "";
+  let line = parts.join(", ");
+  if (line.length > max) line = `${line.slice(0, max - 1)}…`;
+  return ` <span class="ev-data">${esc(line)}</span>`;
 }
 
 function renderFeed(s) {

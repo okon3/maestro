@@ -63,9 +63,10 @@ test("state_builds_contract_shape", () => {
   assert.deepEqual(t3.dependencies, ["TASK-1.1", "TASK-1.2"]);
   assert.equal(s.tasks.find((t) => t.id === "TASK-0.1").archived, true);
 
-  // Header: active goal, owner waiting = 1 open decision + 1 blocked task.
+  // Header: active goal; waiting = the blocked task; the open decision is not referenced, so it is a question.
   assert.deepEqual(s.header.activeGoal, { id: "TASK-1", title: "The goal", done: 1, total: 3 });
-  assert.equal(s.header.ownerWaiting, 2);
+  assert.equal(s.header.ownerWaiting, 1);
+  assert.equal(s.header.ownerQuestions, 1);
   assert.deepEqual(s.decisions.map((d) => [d.id, d.status]), [["decision-1", "open"], ["decision-2", "accepted"]]);
   assert.deepEqual(s.reports.map((r) => [r.kind, r.id, r.path, r.title]).sort(), [
     ["qa", "QA-1", ".maestro/reports/qa/QA-1.md", "QA 1: exploratory"],
@@ -171,7 +172,7 @@ test("state_pairs_agents", () => {
   );
   const by = Object.fromEntries(s.agents.map((a) => [a.agentId, a]));
   assert.deepEqual(s.agents.map((a) => a.agentId), ["a3", "a2", "a1", "old"]); // newest first
-  assert.deepEqual(by.a1, { agentId: "a1", type: "maestro:implementer", actor: "impl-1", task: "TASK-1.1", state: "finished", since: "2026-11-06T14:00:00Z", until: "2026-11-06T14:10:00Z" });
+  assert.deepEqual(by.a1, { agentId: "a1", type: "maestro:implementer", actor: "impl-1", task: "TASK-1.1", mission: null, model: "sonnet", modelPlanned: true, state: "finished", since: "2026-11-06T14:00:00Z", until: "2026-11-06T14:10:00Z" });
   assert.deepEqual([by.a2.actor, by.a2.task, by.a2.state, by.a2.until], ["impl-2", "TASK-1.2", "running", null]);
   // Non-implementer roles never take claims; they are named after their agent type.
   assert.deepEqual([by.a3.actor, by.a3.task, by.a3.state], ["qa-explorer", null, "running"]);
@@ -475,4 +476,118 @@ test("agents_killed_by_a_usage_limit_are_not_running", () => {
   const impl = s.costs.goals[0].breakdown.find((r) => r.role === "implementer");
   assert.equal(impl.models["claude-sonnet-5-5"].input, 3e6);
   assert.equal(impl.running, 0);
+});
+
+const mk = (id, extra = {}) => ({ ...parent(id, null), ...extra });
+const dec = (id, status = "open") => ({ id, title: id, status, date: null, path: null });
+
+test("waiting_separates_blocking_items_from_open_questions", () => {
+  const s = buildState(
+    {
+      tasks: [
+        mk("TASK-1", { labels: ["goal"], status: "In Progress", decisionRefs: ["decision-7"] }),
+        mk("TASK-1.1", { parent: "TASK-1", status: "Blocked", decisionRefs: ["decision-8"] }),
+        mk("TASK-1.2", { parent: "TASK-1", status: "Ready", decisionRefs: ["decision-9"] }),
+        mk("TASK-2", { labels: ["goal"], status: "To Do", decisionRefs: ["decision-2"] }),
+      ],
+      decisions: [dec("decision-2"), dec("decision-4"), dec("decision-7"), dec("decision-8", "proposed"), dec("decision-9", "accepted")],
+    },
+    NOW,
+  );
+  const by = Object.fromEntries(s.decisions.map((d) => [d.id, d.blocking]));
+  assert.deepEqual(by, { "decision-2": false, "decision-4": false, "decision-7": true, "decision-8": true, "decision-9": false });
+  assert.equal(s.header.ownerWaiting, 3); // blocked task + decision-7 + decision-8
+  assert.equal(s.header.ownerQuestions, 2); // decision-2, decision-4
+});
+
+test("task_files_report_the_decisions_they_mention", () => {
+  const t = parseTaskFile("---\nid: TASK-3\ntitle: x\nlabels: [goal]\n---\n\nSee decision-7 and Decision-3, again decision-7. Not decision-x.\n");
+  assert.deepEqual(t.decisionRefs, ["decision-7", "decision-3"]);
+});
+
+test("milestone_with_all_goals_done_and_only_drafts_is_completed", () => {
+  const s = buildState(
+    {
+      milestones: [{ id: "m-1", title: "One" }, { id: "m-2", title: "Two" }, { id: "m-3", title: "Empty" }],
+      tasks: [
+        mk("TASK-1", { labels: ["goal"], status: "Done", milestone: "m-1" }),
+        mk("TASK-2", { labels: ["goal"], status: "In Progress", milestone: "m-2" }),
+        mk("TASK-3", { labels: ["goal"], status: "Done", milestone: "m-2" }),
+      ],
+      drafts: [{ id: "draft-1", title: "d", milestone: "m-1" }, { id: "draft-2", title: "d", milestone: "m-3" }],
+    },
+    NOW,
+  );
+  const done = Object.fromEntries(s.milestones.map((m) => [m.id, m.completed]));
+  assert.deepEqual(done, { "m-1": true, "m-2": false, "m-3": false });
+  assert.equal(s.milestones[0].drafts.length, 1);
+});
+
+test("tasks_without_a_goal_are_listed_under_their_milestone", () => {
+  const s = buildState(
+    {
+      milestones: [{ id: "m-1", title: "One" }],
+      tasks: [
+        mk("TASK-1", { labels: ["goal"], milestone: "m-1" }),
+        mk("TASK-1.1", { parent: "TASK-1", milestone: "m-1" }),
+        mk("TASK-5", { title: "Debt", status: "To Do", milestone: "m-1" }),
+        mk("TASK-6", { title: "Loose", status: "Ready" }),
+        mk("TASK-7", { title: "Gone", archived: true }),
+      ],
+    },
+    NOW,
+  );
+  const m1 = s.milestones.find((m) => m.id === "m-1");
+  assert.deepEqual(m1.tasks, [{ id: "TASK-5", title: "Debt", status: "To Do" }]);
+  const none = s.milestones.find((m) => m.id === null);
+  assert.deepEqual(none.tasks.map((t) => t.id), ["TASK-6"]);
+  assert.equal(none.completed, false);
+});
+
+test("agents_report_their_model_measured_then_recorded_then_planned", () => {
+  const u = (m, n) => ({ models: { [m]: { input: n, output: 0, cacheRead: 0, cacheWrite: 0 }, "claude-haiku-4-5": { input: 1, output: 0, cacheRead: 0, cacheWrite: 0 } } });
+  const s = buildState(
+    {
+      tasks: [mk("TASK-1.1", { parent: "TASK-1", plannedModel: "opus" }), mk("TASK-1.2", { parent: "TASK-1" })],
+      events: [
+        { ts: "2026-11-06T14:00:00Z", type: "agent.start", agentId: "f1", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T14:00:10Z", type: "agent.bind", agentId: "f1", actor: "impl-1", task: "TASK-1.1", data: { model: "claude-sonnet-5-5" } },
+        { ts: "2026-11-06T14:10:00Z", type: "agent.stop", agentId: "f1", data: { agentType: "maestro:implementer", usage: u("claude-opus-5-5", 100) } },
+        { ts: "2026-11-06T15:00:00Z", type: "agent.start", agentId: "r1", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T15:00:10Z", type: "agent.bind", agentId: "r1", actor: "impl-2", task: "TASK-1.2", data: { model: "claude-sonnet-5-5" } },
+        { ts: "2026-11-06T15:05:00Z", type: "agent.start", agentId: "p1", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T15:05:10Z", type: "agent.bind", agentId: "p1", actor: "impl-1", task: "TASK-1.1", data: {} },
+        { ts: "2026-11-06T15:06:00Z", type: "agent.start", agentId: "a1", data: { agentType: "maestro:architect" } },
+        { ts: "2026-11-06T15:07:00Z", type: "agent.start", agentId: "q1", data: { agentType: "maestro:qa-explorer" } },
+      ],
+    },
+    NOW,
+  );
+  const m = Object.fromEntries(s.agents.map((a) => [a.agentId, [a.model, a.modelPlanned]]));
+  assert.deepEqual(m, { f1: ["claude-opus-5-5", false], r1: ["claude-sonnet-5-5", false], p1: ["opus", true], a1: ["opus", true], q1: [null, false] });
+});
+
+test("task_files_report_the_model_planned_in_their_notes", () => {
+  assert.equal(parseTaskFile("---\nid: TASK-3.1\ntitle: x\n---\n\nModello: Opus, effort medium.\n").plannedModel, "opus");
+  assert.equal(parseTaskFile("---\nid: TASK-3.1\ntitle: x\n---\n\nmodel: sonnet\n").plannedModel, "sonnet");
+  assert.equal(parseTaskFile("---\nid: TASK-3.1\ntitle: x\n---\n\nno hint\n").plannedModel, null);
+});
+
+test("qa_and_review_agents_carry_the_mission_of_the_nearest_earlier_start_event", () => {
+  const s = buildState(
+    {
+      events: [
+        { ts: "2026-11-06T10:00:00Z", type: "qa.start", actor: "pm", data: { qa: "QA-1" } },
+        { ts: "2026-11-06T10:01:00Z", type: "agent.start", agentId: "q1", data: { agentType: "maestro:qa-explorer" } },
+        { ts: "2026-11-06T11:00:00Z", type: "qa.start", actor: "pm", data: { qa: "QA-2" } },
+        { ts: "2026-11-06T11:00:30Z", type: "review.start", actor: "pm", data: { review: "CR-1" } },
+        { ts: "2026-11-06T11:01:00Z", type: "agent.start", agentId: "q2", data: { agentType: "maestro:qa-explorer" } },
+        { ts: "2026-11-06T11:02:00Z", type: "agent.start", agentId: "c1", data: { agentType: "maestro:code-reviewer" } },
+        { ts: "2026-11-06T11:03:00Z", type: "agent.start", agentId: "a1", data: { agentType: "maestro:architect" } },
+      ],
+    },
+    NOW,
+  );
+  const m = Object.fromEntries(s.agents.map((a) => [a.agentId, a.mission]));
+  assert.deepEqual(m, { q1: "QA-1", q2: "QA-2", c1: "CR-1", a1: null });
 });
