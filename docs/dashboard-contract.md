@@ -48,7 +48,7 @@ Owned by the M-3 architect. Design intent: `team-workflow/flusso-team-agenti.htm
                "updatedAt": "ISO", "archived": false } ],
   "agents": [ { "agentId": "a1b2", "type": "maestro:implementer", "actor": "impl-1", "task": "TASK-1.2",
                 "state": "running", "since": "ISO", "until": null } ],
-  "decisions": [ { "id": "decision-1", "title": "...", "status": "open", "date": "ISO" } ],
+  "decisions": [ { "id": "decision-1", "title": "...", "status": "open", "date": "ISO", "path": "backlog/decisions/decision-1 - Title.md" } ],
   "reports": [ { "kind": "qa", "id": "QA-1", "path": ".maestro/reports/qa/QA-1.md", "title": "...", "mtime": "ISO" } ],
   "costs": {
     "estimate": true,
@@ -71,7 +71,10 @@ Rules:
 - **Review counter:** `task.status` events to `Integrated` after the date of the latest `cr/CR-*` tag (all of them if there is no tag).
 - **Agents:** pair `agent.start` and `agent.stop` events by `agentId`. Running means no stop yet and a start less than 12 hours old. Link an agent to a task and actor through the nearest `task.claim` that follows its start within 2 minutes, by the same actor's claim.
 - **Stale:** `context` and `usage` are stale when older than 30 minutes.
-- **USD:** `sum(tokens × price / 1e6)` per model, rounded to cents; `null` when no price is known for a model.
+- **USD:** `sum(tokens × price / 1e6)` over the models that have a price, rounded to cents; `null` only when no model has a price. Unpriced models are listed in `costs.unpriced` and the page flags such sums as partial. A GOAL sums its tasks the same way.
+- **Agents `state`:** `running` or `finished`. `actor` and `task` are null when no claim follows the start (architect, QA, reviewer).
+- **Extra top-level fields:** `git: {branch, tags}` and `warnings` (files skipped while parsing).
+- **Caching:** every response carries `cache-control: no-store`.
 
 ## `GET /api/stream`
 

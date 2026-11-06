@@ -110,15 +110,15 @@ test("state_computes_costs", () => {
   assert.equal(t["TASK-1.1"].wallMs, 200);
   assert.equal(t["TASK-1.1"].reworkCycles, 1);
   assert.equal(t["TASK-1.1"].goal, "TASK-1");
-  // 1.2 has an unpriced model: usd is null, the model is listed.
-  assert.equal(t["TASK-1.2"].usd, null);
+  // 1.2 has an unpriced model: usd covers the priced models only (opus 500k output = 10), the model is listed.
+  assert.equal(t["TASK-1.2"].usd, 10);
   assert.equal(t["TASK-1.3"].usd, 0.6); // haiku 0.10 + 0.50
   assert.deepEqual(s.costs.unpriced, ["claude-mystery-1"]);
-  // Goal: sums tokens and wall time; usd is null as soon as one task is unpriced.
+  // Goal: sums tokens, wall time and the priced USD (16.6 + 10 + 0.6).
   assert.equal(s.costs.goals.length, 1);
   assert.equal(s.costs.goals[0].tasks, 3);
   assert.equal(s.costs.goals[0].wallMs, 400);
-  assert.equal(s.costs.goals[0].usd, null);
+  assert.equal(s.costs.goals[0].usd, 27.2);
   assert.equal(s.costs.goals[0].models["claude-opus-5-5"].output, 500000);
   assert.equal(s.costs.estimate, true);
   assert.match(s.costs.pricesSource, /^https:\/\/.+ \(\d{4}-\d{2}-\d{2}\)$/);

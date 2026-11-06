@@ -226,17 +226,20 @@ function buildCosts({ events, tasksById, overrides }) {
     byTask.set(id, rec);
   }
   // Unrounded USD, or null when any model of the record has no price.
+  // USD of the priced models only; null when no model has a price. Unpriced models are listed in `unpriced`
+  // and the page flags the sum as partial.
   const usdOf = (models) => {
     let total = 0;
-    let known = true;
+    let pricedAny = false;
     for (const [model, tok] of Object.entries(models)) {
       const c = costUsd(model, tok, overrides);
-      if (c === null) {
-        unpriced.add(model);
-        known = false;
-      } else total += c;
+      if (c === null) unpriced.add(model);
+      else {
+        total += c;
+        pricedAny = true;
+      }
     }
-    return known ? total : null;
+    return pricedAny ? total : null;
   };
   const round = (n) => (n === null ? null : Math.round(n * 100) / 100);
   const taskRows = [];
@@ -262,7 +265,7 @@ function buildCosts({ events, tasksById, overrides }) {
     g.tasks++;
     g.wallMs += row.wallMs;
     for (const [m, tok] of Object.entries(row.models)) addTokens((g.models[m] ??= {}), tok);
-    g.usd = g.usd === null || usd === null ? null : g.usd + usd;
+    if (usd !== null) g.usd = (g.usd ?? 0) + usd;
     goals.set(row.goal, g);
   }
   return {
@@ -385,7 +388,7 @@ export function buildState(inputs, now = new Date()) {
     milestones,
     tasks,
     agents: buildAgents(events, nowMs),
-    decisions: decisions.map((d) => ({ id: d.id, title: d.title, status: d.status, date: d.date })),
+    decisions: decisions.map((d) => ({ id: d.id, title: d.title, status: d.status, date: d.date, path: d.path ?? null })),
     reports: inputs.reports ?? [],
     costs,
     events: events.slice(-50).reverse(),
@@ -514,11 +517,11 @@ export function loadState(root, { now = new Date() } = {}) {
     ...readEach(listMd(join(backlog, "archive", "milestones")), warnings, root, milestoneOf(true)),
   ];
 
-  const decisions = readEach(listMd(join(backlog, "decisions")), warnings, root, (text) => {
+  const decisions = readEach(listMd(join(backlog, "decisions")), warnings, root, (text, file) => {
     const { data } = parseFrontmatter(text);
     const id = first(data, "id");
     if (id === null) return null;
-    return { id: String(id), title: String(first(data, "title") ?? id), status: String(first(data, "status") ?? ""), date: toIso(first(data, "date", "created_date")) };
+    return { id: String(id), title: String(first(data, "title") ?? id), status: String(first(data, "status") ?? ""), date: toIso(first(data, "date", "created_date")), path: posix(relative(root, file)) };
   });
 
   const mainBranch = config.mainBranch;
