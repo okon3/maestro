@@ -10,7 +10,8 @@ import { gitCommonDir, loadConfig } from "./lib/config.mjs";
 import { appendEvent, readEvents } from "./lib/events.mjs";
 import { backlogVersion, editTask, listTasks, runTool, viewTask } from "./lib/backlog.mjs";
 import { DEFAULT_PORT, runtimeFile, startServer } from "./dashboard/server.mjs";
-import { branchExists, git, refExists, worktreeBranch, worktreePath } from "./lib/git.mjs";
+import { branchExists, findWorktree, git, refExists, worktreePath } from "./lib/git.mjs";
+import { applySetup, explainRemoveFailure, isInside, normalizeSetup, removeLinks, restoreLinks, worktreeBusy } from "./lib/worktree.mjs";
 
 class CliError extends Error {
   constructor(message, code = 1) {
@@ -19,7 +20,7 @@ class CliError extends Error {
   }
 }
 
-const BOOLEAN_FLAGS = new Set(["json", "probe", "reuse", "no-open", "stop", "foreground"]);
+const BOOLEAN_FLAGS = new Set(["json", "probe", "reuse", "no-open", "stop", "foreground", "remove", "force"]);
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function parseArgs(argv) {
@@ -151,6 +152,39 @@ function openBrowser(url) {
   }
 }
 
+// `maestro worktree <name> --remove [--force]`: unlink the setup links without following them, then
+// `git worktree remove`. On Windows a busy folder is refused before anything is deleted.
+function removeWorktree(root, name, path, setup, flags) {
+  const registered = findWorktree(root, path);
+  if (!registered) {
+    if (existsSync(path)) throw new CliError(`${path} is not a registered worktree; check it holds no links (junctions) before deleting it by hand`);
+    out(flags, { path, removed: false, reason: "not found" }, `no worktree "${name}"`);
+    return 0;
+  }
+  if (!existsSync(path)) {
+    git(root, ["worktree", "prune"]);
+    out(flags, { path, removed: true, unlinked: [] }, `removed ${path} (folder was already gone)`);
+    return 0;
+  }
+  if (isInside(process.cwd(), path)) throw new CliError(`run this from the main checkout, not from inside ${path}`);
+  const busy = worktreeBusy(path);
+  if (busy) {
+    console.error(`refused: ${path} is in use (${busy}); nothing was removed.\nLikely cause: ${explainRemoveFailure("busy", name)}`);
+    return 2;
+  }
+  const links = removeLinks(path, setup.link);
+  const unlinked = links.map((l) => l.entry);
+  try {
+    git(root, ["worktree", "remove", ...(flags.force ? ["--force"] : []), path]);
+  } catch (e) {
+    if (existsSync(path)) restoreLinks(path, links);
+    const reason = e.message.replace(/^git [\s\S]*? failed: /, "");
+    throw new CliError(`cannot remove worktree ${path}: ${reason}\nLikely cause: ${explainRemoveFailure(reason, name)}`);
+  }
+  out(flags, { path, removed: true, unlinked }, `removed ${path}${unlinked.length ? ` (unlinked ${unlinked.join(", ")} first)` : ""}`);
+  return 0;
+}
+
 const COMMANDS = {
   doctor(args, flags) {
     let loaded = { root: null, config: null, initialized: false };
@@ -253,16 +287,47 @@ const COMMANDS = {
 
   worktree([name], flags) {
     requireName(name, "worktree name");
-    const goal = requireName(flags.goal, "--goal");
     const { root, config } = context();
-    const goalBranch = `${config.goalBranchPrefix}${goal}`;
+    let setup;
+    try {
+      setup = normalizeSetup(config.worktreeSetup);
+    } catch (e) {
+      throw new CliError(`invalid .maestro/config.json: ${e.message}`);
+    }
     const path = worktreePath(root, name);
-    const existingBranch = worktreeBranch(root, path);
-    if (existsSync(path) || branchExists(root, name) || existingBranch) {
-      if (flags.reuse && existingBranch === name) {
-        out(flags, { path, branch: name, reused: true }, path);
-        return 0;
+    if (flags.remove) return removeWorktree(root, name, path, setup, flags);
+    const detach = flags.detach;
+    const goal = detach === undefined ? requireName(flags.goal, "--goal") : null;
+    const existing = findWorktree(root, path);
+    const finish = (result, created) => {
+      const { linked, warnings, run } = applySetup(root, path, setup, { runCommand: created });
+      if (!flags.json) for (const w of warnings) console.error(`warning: ${w}`);
+      if (run && run.status !== 0) {
+        throw new CliError(`worktree ready at ${path}, but the setup command failed (${run.error ?? `exit ${run.status}`}): ${run.command}`);
       }
+      out(flags, { ...result, setup: { linked, warnings, run } }, path);
+      return 0;
+    };
+    if (detach !== undefined) {
+      // Detached snapshot (QA, code review) at a tag or commit: no branch.
+      if (existsSync(path) || existing) {
+        if (flags.reuse && existing?.detached) return finish({ path, detached: true, reused: true }, false);
+        console.error(`refused: worktree path "${name}" already exists (use --reuse to reuse a detached snapshot)`);
+        return 2;
+      }
+      try {
+        if (detach.startsWith("-")) throw new Error("not a ref");
+        git(root, ["rev-parse", "--verify", "--quiet", `${detach}^{commit}`]);
+      } catch {
+        throw new CliError(`unknown ref for --detach: ${detach}`);
+      }
+      git(root, ["worktree", "add", "-q", "--detach", path, detach]);
+      return finish({ path, detached: true, ref: detach }, true);
+    }
+    const goalBranch = `${config.goalBranchPrefix}${goal}`;
+    const existingBranch = existing?.branch ?? null;
+    if (existsSync(path) || branchExists(root, name) || existingBranch) {
+      if (flags.reuse && existingBranch === name) return finish({ path, branch: name, reused: true }, false);
       console.error(`refused: worktree path or branch "${name}" already exists (use --reuse to reuse it)`);
       return 2;
     }
@@ -274,8 +339,7 @@ const COMMANDS = {
       else git(root, ["branch", goalBranch, config.mainBranch]);
     }
     git(root, ["worktree", "add", "-q", "-b", name, path, goalBranch]);
-    out(flags, { path, branch: name, base: goalBranch }, path);
-    return 0;
+    return finish({ path, branch: name, base: goalBranch }, true);
   },
 
   async context(args, flags) {

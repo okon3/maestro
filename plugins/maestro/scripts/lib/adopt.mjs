@@ -26,6 +26,13 @@ export function detectRunner(root) {
   return has("package.json") ? "npm" : null;
 }
 
+const NODE_LOCKFILES = ["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"];
+
+/** True when the project keeps Node packages in node_modules (the folder exists, or a Node lockfile does). */
+export function usesNodeModules(root) {
+  return existsSync(join(root, "node_modules")) || NODE_LOCKFILES.some((f) => existsSync(join(root, f)));
+}
+
 function scriptCommand(runner, name) {
   if (runner === "yarn") return `yarn ${name}`;
   if (name === "test" && runner !== "bun") return `${runner} test`;

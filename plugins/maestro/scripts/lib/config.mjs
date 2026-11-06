@@ -14,6 +14,9 @@ export const DEFAULTS = Object.freeze({
   reviewEveryTasks: 15,
   language: "it",
   secretPaths: [],
+  // Post-create step of `maestro worktree` (section 3 of docs/plugin-contracts.md): folders of the main
+  // checkout linked into each new worktree, and an optional command run there.
+  worktreeSetup: Object.freeze({ link: Object.freeze([]), run: null }),
 });
 
 export const CONFIG_PATH = join(".maestro", "config.json");

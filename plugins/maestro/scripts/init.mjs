@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Install Maestro's project files (used by the init skill). Node built-ins only, idempotent:
 // creates missing files from templates/, appends missing ignore/attributes lines, inserts or refreshes
-// the marked AGENTS.md block (text outside the markers is never touched), and sets up Backlog.md.
+// the marked AGENTS.md block (text outside the markers is never touched), proposes `worktreeSetup` for Node
+// projects, and sets up Backlog.md.
 //
 // usage: node init.mjs [--dry-run] [--json] [--project NAME] [--main-branch B] [--language L] [--skip-backlog]
 // Exit codes: 0 done, 1 error, 2 done but something needs the owner (see "manual" lines). "review" lines are
@@ -12,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import { findProjectRoot } from "./lib/config.mjs";
 import { backlogVersion, runTool } from "./lib/backlog.mjs";
-import { MARKER_END, MARKER_START, detectChecks, flagConflicts, planInfo, prefillChecks } from "./lib/adopt.mjs";
+import { MARKER_END, MARKER_START, detectChecks, flagConflicts, planInfo, prefillChecks, usesNodeModules } from "./lib/adopt.mjs";
 
 const TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), "..", "templates");
 
@@ -42,6 +43,17 @@ function appendSection(text, section) {
   if (out && !out.endsWith("\n")) out += eol;
   if (out) out += eol;
   return out + withEol(section.trimEnd(), eol) + eol;
+}
+
+const WORKTREE_SETUP_NOTE = 'worktreeSetup.link ["node_modules"]: worktrees link the main checkout\'s node_modules instead of installing';
+
+/** Add a top-level key to a JSON object text before its closing brace, keeping the rest of the text as it is. */
+export function addJsonKey(text, key, value) {
+  const eol = eolOf(text);
+  const end = text.lastIndexOf("}");
+  const head = text.slice(0, end).replace(/\s*$/, "");
+  const sep = head.endsWith("{") ? "" : ",";
+  return `${head}${sep}${eol}  ${JSON.stringify(key)}: ${JSON.stringify(value)}${eol}}${text.slice(end + 1)}`;
 }
 
 /** Append the lines of `wanted` missing from `text` (compared trimmed, without leading/trailing slashes). */
@@ -166,14 +178,30 @@ export function init({ cwd = process.cwd(), dryRun = false, project, mainBranch,
   const name = project || basename(root);
 
   // .maestro/config.json
+  // A Node project gets `worktreeSetup.link: ["node_modules"]` so worktrees share the main checkout's packages;
+  // an existing config without the key gets it as an `update` line the owner approves.
   const configPath = ".maestro/config.json";
-  if (read(configPath) === null) {
+  const nodeSetup = usesNodeModules(root) ? { link: ["node_modules"], run: null } : null;
+  const currentConfig = read(configPath);
+  if (currentConfig === null) {
     const config = JSON.parse(template("config.json"));
     config.mainBranch = mainBranch || detectMainBranch(root) || config.mainBranch;
     if (language) config.language = language;
+    if (nodeSetup) config.worktreeSetup = nodeSetup;
     write(configPath, JSON.stringify(config, null, 2) + "\n");
-    act(configPath, "create", `mainBranch ${config.mainBranch}, language ${config.language}`);
-  } else act(configPath, "unchanged");
+    act(configPath, "create", `mainBranch ${config.mainBranch}, language ${config.language}${nodeSetup ? `, ${WORKTREE_SETUP_NOTE}` : ""}`);
+  } else {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(currentConfig.replace(/^﻿/, ""));
+    } catch {
+      manual.push(`${configPath} is not valid JSON; fix it by hand`);
+    }
+    if (nodeSetup && parsed && typeof parsed === "object" && !Array.isArray(parsed) && !("worktreeSetup" in parsed)) {
+      write(configPath, addJsonKey(currentConfig, "worktreeSetup", nodeSetup));
+      act(configPath, "update", WORKTREE_SETUP_NOTE);
+    } else act(configPath, "unchanged");
+  }
 
   // Files created only when missing.
   for (const [path, tpl] of [[".maestro/handoff.md", "handoff.md"], ["PLAN.md", "PLAN.md"]]) {
