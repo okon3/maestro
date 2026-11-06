@@ -88,7 +88,7 @@ Review only `done` and `done_with_concerns`:
    - `git merge --no-ff impl-<n>` into the goal branch;
    - run the project's standard checks on the goal branch;
    - save the implementer's final report as `.maestro/reports/task/<id>.md`;
-   - `backlog task edit <id> -s Integrated` and check the satisfied criteria;
+   - `backlog task edit <id> -s Integrated`; the implementer checked each criterion when its test passed: uncheck (`--uncheck-ac <n>`) any you do not accept, and check any it missed;
    - `maestro measure <id> --goal <goal-id> --agent-id <agent ids> --actor architect --rework <correction cycles>`;
    - remove the worktree and its branch.
 

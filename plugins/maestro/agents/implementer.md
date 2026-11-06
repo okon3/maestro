@@ -23,7 +23,7 @@ Use the `maestro` command for claims; it is on PATH. If `maestro` is not found, 
 - **No delegation.** You do the work yourself.
 - **Edit files with the Edit and Write tools,** not with ad-hoc scripts (Python, sed, PowerShell): those may be missing and can fail silently.
 - **Never push, merge, rebase shared branches, create tasks, or change permission modes.** Commit only on your own branch.
-- **Tracker:** you change only status, notes and your claim. Run `backlog` commands from the main checkout (the parent of `git rev-parse --path-format=absolute --git-common-dir`), never from your worktree, and never commit `backlog/` files on your branch.
+- **Tracker:** you change only status, notes, your claim and the acceptance-criteria checkboxes of your task. Run `backlog` commands from the main checkout (the parent of `git rev-parse --path-format=absolute --git-common-dir`), never from your worktree, and never commit `backlog/` files on your branch.
 
 ## 1. Start
 
@@ -52,6 +52,7 @@ If something is missing, renamed or behaves differently, the spec is stale. Do n
 
 1. For each acceptance criterion, write **one test with the exact name** given in the criterion (`test: <name>`). The test asserts the behaviour the criterion describes, not the implementation.
 2. Make the tests pass with the smallest change that fits the contracts. Keep to the project's style and module boundaries.
+   As soon as the named test of a criterion passes, check it: `backlog task edit <id> --check-ac <n>` (from the main checkout). The owner follows progress on the dashboard. Uncheck it (`--uncheck-ac <n>`) if a later change breaks it.
 3. A criterion marked as a QA check instead of a test: do a self-smoke check if you can (open the page, run the command) and describe what you saw.
 4. Run the project checks from `AGENTS.md` (and any listed in the brief). All must pass. Do not disable or skip checks.
 5. If you are stuck after two different approaches to the same problem, stop and return `blocked` with the evidence. Do not loop.

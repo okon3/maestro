@@ -441,7 +441,7 @@ function taskCard(t, statusOf, running, showGoal) {
   return `<article class="card s-${statusSlug(t.status)}${t.archived ? " is-archived" : ""}">
     <p class="card-top">${idEl(t.id)}${showGoal && t.goal ? `<span class="card-goal">${esc(t.goal)}</span>` : ""}${t.archived ? `<span class="badge b-archived">archived</span>` : ""}</p>
     <h3 class="card-title">${esc(t.title)}</h3>
-    ${acTotal ? `<div class="ac" title="${acDone} of ${acTotal} acceptance criteria checked"><div class="meter"><span style="width:${Math.round((acDone / acTotal) * 100)}%"></span></div><span class="frac">AC ${acDone}/${acTotal}</span></div>` : ""}
+    ${acTotal ? `<div class="ac" title="${acDone} of ${acTotal} acceptance criteria met: the implementer checks each one when its named test passes; the architect re-checks them at review"><div class="meter"><span style="width:${Math.round((acDone / acTotal) * 100)}%"></span></div><span class="frac">criteria ${acDone}/${acTotal}</span></div>` : ""}
     ${who || agent ? `<p class="card-who">${who}${agent ? `<span class="working" title="Agent ${esc(agent.agentId)} running">working ${timeEl(agent.since, "since")}</span>` : ""}</p>` : ""}
     ${deps.length ? `<p class="deps">${deps.join("")}</p>` : ""}
   </article>`;
