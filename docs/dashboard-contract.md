@@ -55,7 +55,7 @@ Owned by the M-3 architect. Design intent: `team-workflow/flusso-team-agenti.htm
     "estimate": true,
     "pricesSource": "https://... (2026-11-06)",
     "tasks": [ { "task": "TASK-1.2", "goal": "TASK-1", "title": "...", "wallMs": 220425, "reworkCycles": 0,
-                 "ownerInterventions": 0,
+                 "ownerInterventions": 0, "sharedWith": [],
                  "models": { "claude-sonnet-5-5": { "input": 34, "output": 33352, "cacheRead": 892551, "cacheWrite": 75324 } },
                  "usd": 1.23 } ],
     "goals": [ { "goal": "TASK-1", "title": "...", "tasks": 3, "wallMs": 0, "usd": 0, "models": {},
@@ -82,6 +82,7 @@ Rules:
   - subagents count when their first `agent.start` is in the window; the role comes from `data.agentType` (`maestro:architect`, `maestro:implementer`, `maestro:qa-explorer`, `maestro:code-reviewer`, anything else is `other`). Their tokens are the `data.usage` of their latest `agent.stop`: usage is cumulative over the agent transcript, so a resumed agent counts once. An agent with no stop after its latest start (and that start less than 12 hours old, as in the Agents view) counts in `running` and adds no tokens until it stops.
   - `pm`: the PM transcripts of `pm-sessions.json` summed inside the window (`agents` = sessions with messages in it). For an open window the end is rounded down to the minute so the cache keeps working. With no PM session known, `agents` is 0 and `note` says why.
   - `total` sums the breakdown; `usd` follows the USD rule below. The per-task fields (`tasks`, `wallMs`, `models`, `usd` from `task.measure`) are unchanged and their implementer work is already inside the breakdown.
+  - Each implementer agent is counted once. When one agent worked on several tasks (a batch), its usage (from its latest `agent.stop`) is split evenly among them and `sharedWith` lists the other tasks; an agent with no `agent.stop` keeps what its measure recorded beyond the known agents.
 - **Agents `state`:** `running` or `finished`. `actor` and `task` are null when no claim follows the start (architect, QA, reviewer).
 - **Extra top-level fields:** `git: {branch, tags}` and `warnings` (files skipped while parsing).
 - **Caching:** every response carries `cache-control: no-store`.

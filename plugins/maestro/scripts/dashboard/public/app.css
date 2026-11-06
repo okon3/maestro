@@ -327,6 +327,7 @@ details > summary:hover { color: var(--ink); }
 .costs tr.group-start td { border-top: 1px solid var(--line); }
 .costs tbody tr:first-child td { border-top: 0; }
 .cell-title { color: var(--ink-2); display: block; font-size: 12.5px; max-width: 28ch; }
+.cell-note { color: var(--muted); display: block; font-size: 12px; max-width: 28ch; margin-top: 2px; }
 .model { white-space: nowrap; }
 .flag {
   display: inline-block;

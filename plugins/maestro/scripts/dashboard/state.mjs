@@ -72,8 +72,21 @@ export function parseFrontmatter(text) {
   if (!m) return { data: {}, body: src, hasFrontmatter: false };
   const data = {};
   let listKey = null;
-  for (const line of m[1].split("\n")) {
+  const lines = m[1].split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (!line.trim() || line.trim().startsWith("#")) continue;
+    // Block scalars (`key: >-`, `key: |`): Backlog.md writes long titles this way.
+    const block = /^([A-Za-z_][\w.-]*)\s*:\s+([>|])[+-]?\s*$/.exec(line);
+    if (block) {
+      const body = [];
+      while (i + 1 < lines.length && (lines[i + 1].trim() === "" || /^\s/.test(lines[i + 1]))) body.push(lines[++i].trim());
+      while (body.length && body[body.length - 1] === "") body.pop();
+      data[snake(block[1])] =
+        block[2] === "|" ? body.join("\n") : body.join("\n").replace(/([^\n])\n(?=[^\n])/g, "$1 ").replace(/\n\n/g, "\n");
+      listKey = null;
+      continue;
+    }
     const item = /^\s*-\s+(.*)$/.exec(line);
     if (item && listKey) {
       data[listKey].push(unquote(item[1]));
@@ -373,22 +386,83 @@ function goalBreakdown(spans, runs, pmUsage) {
   return [...rows.values()];
 }
 
-function buildCosts({ events, tasksById, overrides, nowMs = Date.now(), pmUsage = null }) {
-  const unpriced = new Set();
+/**
+ * Per-task usage from task.measure events. An agent's usage is counted once overall: when one implementer worked
+ * on several tasks (a batch), its usage is split evenly among them and each row lists the tasks it shares.
+ * Per-agent usage comes from the agent's latest agent.stop (cumulative over its transcript) or, failing that, from
+ * a single-agent measure. Measures without agent ids (older data) are summed as recorded.
+ */
+function measuredTasks(events) {
+  const agentUsage = new Map();
+  for (const e of events) if (e.type === "agent.stop" && e.agentId && e.data?.usage) agentUsage.set(e.agentId, e.data.usage);
+  const fromStop = new Set(agentUsage.keys());
+  for (const e of events) {
+    const ids = e.type === "task.measure" ? (e.data?.agentIds ?? []) : [];
+    if (ids.length === 1 && e.data?.usage && !fromStop.has(ids[0])) {
+      agentUsage.set(String(ids[0]), { ...e.data.usage, wallMs: Number(e.data.wallMs ?? e.data.usage.wallMs ?? 0) || 0 });
+    }
+  }
   const byTask = new Map();
   for (const e of events) {
     if (e.type !== "task.measure" || !e.task) continue;
     const id = normId(e.task);
-    const usage = e.data?.usage ?? {};
-    const rec = byTask.get(id) ?? { models: {}, wallMs: 0, reworkCycles: 0, ownerInterventions: 0 };
-    for (const [model, tok] of Object.entries(usage.models ?? {})) addTokens((rec.models[model] ??= {}), tok);
-    rec.wallMs += Number(e.data?.wallMs ?? usage.wallMs ?? 0) || 0;
+    const rec = byTask.get(id) ?? { agents: new Set(), legacy: [], reworkCycles: 0, ownerInterventions: 0 };
+    const ids = (e.data?.agentIds ?? []).map(String);
+    const known = ids.filter((a) => agentUsage.has(a));
+    known.forEach((a) => rec.agents.add(a));
+    if (known.length < ids.length || !ids.length) {
+      // Agents with no usage of their own (no agent.stop, e.g. killed by a usage limit): keep what the measure
+      // recorded beyond the known agents, so no agent is counted twice.
+      const models = {};
+      for (const [model, tok] of Object.entries(e.data?.usage?.models ?? {})) {
+        const rest = {};
+        for (const k of ["input", "output", "cacheRead", "cacheWrite"]) {
+          const used = known.reduce((s, a) => s + (agentUsage.get(a).models?.[model]?.[k] ?? 0), 0);
+          rest[k] = Math.max(0, (tok?.[k] ?? 0) - used);
+        }
+        models[model] = rest;
+      }
+      const wall = Number(e.data?.wallMs ?? e.data?.usage?.wallMs ?? 0) || 0;
+      const knownWall = known.reduce((s, a) => s + (Number(agentUsage.get(a).wallMs) || 0), 0);
+      rec.legacy.push({ models, wallMs: Math.max(0, wall - knownWall) });
+    }
     // Later measures replace the counters: they are cumulative per task, not per measurement.
     rec.reworkCycles = Number(e.data?.reworkCycles ?? rec.reworkCycles) || 0;
     rec.ownerInterventions = Number(e.data?.ownerInterventions ?? rec.ownerInterventions) || 0;
     if (e.goal && !rec.goal) rec.goal = e.goal;
     byTask.set(id, rec);
   }
+  const tasksOfAgent = new Map();
+  for (const [id, rec] of byTask) for (const a of rec.agents) tasksOfAgent.set(a, [...(tasksOfAgent.get(a) ?? []), id]);
+  const out = new Map();
+  for (const [id, rec] of byTask) {
+    const models = {};
+    let wallMs = 0;
+    const shared = new Set();
+    for (const a of rec.agents) {
+      const tasks = tasksOfAgent.get(a);
+      const n = tasks.length;
+      const u = agentUsage.get(a);
+      for (const [model, tok] of Object.entries(u.models ?? {})) {
+        const part = {};
+        for (const k of ["input", "output", "cacheRead", "cacheWrite"]) part[k] = Math.round((tok?.[k] ?? 0) / n);
+        addTokens((models[model] ??= {}), part);
+      }
+      wallMs += Math.round((Number(u.wallMs) || 0) / n);
+      for (const t of tasks) if (t !== id) shared.add(t);
+    }
+    for (const l of rec.legacy) {
+      for (const [model, tok] of Object.entries(l.models)) addTokens((models[model] ??= {}), tok);
+      wallMs += l.wallMs;
+    }
+    out.set(id, { models, wallMs, sharedWith: [...shared].sort(), reworkCycles: rec.reworkCycles, ownerInterventions: rec.ownerInterventions, goal: rec.goal });
+  }
+  return out;
+}
+
+function buildCosts({ events, tasksById, overrides, nowMs = Date.now(), pmUsage = null }) {
+  const unpriced = new Set();
+  const byTask = measuredTasks(events);
   // Unrounded USD, or null when any model of the record has no price.
   // USD of the priced models only; null when no model has a price. Unpriced models are listed in `unpriced`
   // and the page flags the sum as partial.
@@ -415,6 +489,7 @@ function buildCosts({ events, tasksById, overrides, nowMs = Date.now(), pmUsage 
         goal: t?.parent ?? (rec.goal ? normId(rec.goal) : null),
         title: t?.title ?? id,
         wallMs: rec.wallMs,
+        sharedWith: rec.sharedWith,
         reworkCycles: rec.reworkCycles,
         ownerInterventions: rec.ownerInterventions,
         models: rec.models,

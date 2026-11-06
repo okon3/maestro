@@ -836,6 +836,7 @@ function costChart(tasks, unpriced) {
         `Tokens: ${fmtTokens(totalTokens(t.models))}`,
         ...Object.entries(t.models || {}).map(([m, u]) => `  ${modelName(m)}: ${fmtTokens(totalTokens({ m: u }))}${unpriced.has(m) ? " (unpriced)" : ""}`),
         `Wall time: ${fmtDuration(t.wallMs)}`,
+        ...(t.sharedWith?.length ? [`Batch with ${t.sharedWith.join(", ")}: the implementer's cost is split evenly`] : []),
       ].join("\n");
       return `<div class="bar-row" tabindex="0" data-tip="${esc(tip)}"><span class="bar-label">${idEl(t.task)}<span class="bar-title">${esc(t.title || "")}</span></span><span class="bar-track">${
         v == null ? `<span class="bar-none">unpriced, see table</span>` : `<span class="bar" style="width:${pct}%"></span><span class="bar-value">${esc(label)}</span>`
@@ -848,13 +849,18 @@ function costChart(tasks, unpriced) {
     <div class="bars">${bars}</div></figure>`;
 }
 
+const sharedNote = (t) =>
+  t.sharedWith?.length
+    ? `<span class="cell-note" title="One implementer worked on these tasks together: its cost is split evenly among them.">Batch with ${t.sharedWith.map(esc).join(", ")}: cost split evenly</span>`
+    : "";
+
 function costTable(tasks, unpriced) {
   const sorted = [...tasks].sort((a, b) => naturalCompare(a.goal, b.goal) || naturalCompare(a.task, b.task));
   const body = sorted
     .map((t) => {
       const models = Object.entries(t.models || {});
       const span = Math.max(1, models.length);
-      const first = `<td rowspan="${span}">${idEl(t.task)} <span class="cell-title">${esc(t.title || "")}</span></td><td rowspan="${span}">${t.goal ? idEl(t.goal) : ""}</td><td rowspan="${span}" class="num">${fmtDuration(t.wallMs)}</td><td rowspan="${span}" class="num${t.reworkCycles ? " hot" : ""}">${Number(t.reworkCycles) || 0}</td><td rowspan="${span}" class="num${t.ownerInterventions ? " hot" : ""}">${Number(t.ownerInterventions) || 0}</td>`;
+      const first = `<td rowspan="${span}">${idEl(t.task)} <span class="cell-title">${esc(t.title || "")}</span>${sharedNote(t)}</td><td rowspan="${span}">${t.goal ? idEl(t.goal) : ""}</td><td rowspan="${span}" class="num">${fmtDuration(t.wallMs)}</td><td rowspan="${span}" class="num${t.reworkCycles ? " hot" : ""}">${Number(t.reworkCycles) || 0}</td><td rowspan="${span}" class="num${t.ownerInterventions ? " hot" : ""}">${Number(t.ownerInterventions) || 0}</td>`;
       const usd = `<td rowspan="${span}" class="num usd">${usdCell(t.usd, t.models, unpriced)}</td>`;
       if (!models.length) return `<tr class="group-start">${first}<td colspan="5" class="quiet">no token data</td>${usd}</tr>`;
       return models

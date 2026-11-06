@@ -399,3 +399,50 @@ test("state_reads_pm_sessions_for_goal_cost", () => {
   const g = loadState(dir, { now: NOW }).costs.goals[0];
   assert.deepEqual([g.goal, g.breakdown[0].role, g.breakdown[0].agents, g.breakdown[0].usd, g.total.usd], ["TASK-1", "pm", 1, 4, 4]);
 });
+
+test("frontmatter_parser_reads_block_scalar_titles", () => {
+  const folded = parseFrontmatter("---\nid: TASK-1.10\ntitle: >-\n  Difetto: quote sulla stanza\n  di una 5x4\nstatus: Done\n---\n");
+  assert.equal(folded.data.title, "Difetto: quote sulla stanza di una 5x4");
+  assert.equal(folded.data.status, "Done");
+  const literal = parseFrontmatter("---\nnote: |\n  line one\n  line two\n\nlabels:\n  - goal\n---\n");
+  assert.equal(literal.data.note, "line one\nline two");
+  assert.deepEqual(literal.data.labels, ["goal"]);
+});
+
+test("costs_split_an_agent_shared_by_several_tasks", () => {
+  const stop = (ts, agentId, models, wallMs) => ({ ts, type: "agent.stop", agentId, data: { agentType: "maestro:implementer", usage: { models, wallMs } } });
+  const m = (ts, task, agentIds, models, wallMs) => ({ ts, type: "task.measure", task, data: { agentIds, usage: { models, wallMs }, wallMs } });
+  const sonnet = (input) => ({ "claude-sonnet-5-5": { input, output: 0, cacheRead: 0, cacheWrite: 0 } });
+  const s = buildState(
+    {
+      tasks: ["TASK-1.1", "TASK-1.2", "TASK-1.3", "TASK-1.4", "TASK-1.5"].map((id) => parent(id, "TASK-1")),
+      events: [
+        // One implementer (b1) did a batch of three tasks: each measure recorded the agent's full usage.
+        stop("2026-11-06T10:00:00Z", "b1", sonnet(3e6), 300),
+        m("2026-11-06T10:01:00Z", "TASK-1.1", ["b1"], sonnet(3e6), 300),
+        m("2026-11-06T10:01:00Z", "TASK-1.2", ["b1"], sonnet(3e6), 300),
+        m("2026-11-06T10:01:00Z", "TASK-1.3", ["b1"], sonnet(3e6), 300),
+        // TASK-1.4: an agent killed by a usage limit (k1, no agent.stop) plus b2, which also did TASK-1.5.
+        stop("2026-11-06T11:00:00Z", "b2", sonnet(2e6), 200),
+        m("2026-11-06T11:01:00Z", "TASK-1.4", ["k1", "b2"], sonnet(2.5e6), 260),
+        m("2026-11-06T11:01:00Z", "TASK-1.5", ["b2"], sonnet(2e6), 200),
+        // Re-measuring the same agent for the same task counts it once.
+        m("2026-11-06T11:02:00Z", "TASK-1.5", ["b2"], sonnet(2e6), 200),
+      ],
+    },
+    NOW,
+  );
+  const t = Object.fromEntries(s.costs.tasks.map((x) => [x.task, x]));
+  for (const id of ["TASK-1.1", "TASK-1.2", "TASK-1.3"]) {
+    assert.equal(t[id].models["claude-sonnet-5-5"].input, 1e6);
+    assert.equal(t[id].wallMs, 100);
+  }
+  assert.deepEqual(t["TASK-1.1"].sharedWith, ["TASK-1.2", "TASK-1.3"]);
+  // 1.4: half of b2 (1M) plus what the measure holds beyond b2 for k1 (0.5M).
+  assert.equal(t["TASK-1.4"].models["claude-sonnet-5-5"].input, 1.5e6);
+  assert.equal(t["TASK-1.4"].wallMs, 160);
+  assert.equal(t["TASK-1.5"].models["claude-sonnet-5-5"].input, 1e6);
+  assert.deepEqual(t["TASK-1.5"].sharedWith, ["TASK-1.4"]);
+  // The GOAL's measured total is what the agents used: 3M + 2M + 0.5M.
+  assert.equal(s.costs.goals[0].models["claude-sonnet-5-5"].input, 5.5e6);
+});
