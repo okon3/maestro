@@ -286,7 +286,7 @@ const COMMANDS = {
       ownerInterventions: Number(flags.interventions ?? 0),
       reworkCycles: Number(flags.rework ?? 0),
     };
-    const event = appendEvent(root, "task.measure", { actor: flags.actor, task: id, data });
+    const event = appendEvent(root, "task.measure", { actor: flags.actor, goal: flags.goal, task: id, data });
     out(flags, event, `measured ${id}: ${Object.keys(models).length} model(s), ${wallMs} ms`);
     return 0;
   },

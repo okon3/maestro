@@ -99,6 +99,8 @@ Computed from a transcript JSONL: sum of `message.usage` over `type:"assistant"`
   - `usageSummary(transcriptPath) -> {models, wallMs}` (section 5).
   - `subagentTranscriptPath(sessionTranscriptPath, agentId)`: `<dir>/<sessionId>/subagents/agent-<agentId>.jsonl`.
 
+Test seams: `MAESTRO_<TOOL>_BIN` (executable, no shell) and `MAESTRO_<TOOL>_ARGS` (JSON array of leading args) for `BACKLOG` and `CLAUDE`; `MAESTRO_TEST_CONTEXT_MODULE` replaces `lib/context.mjs`. Doctor is run by the CLI and skills, not by hooks (hooks stay fast).
+
 Note: a parent directory may itself be a git repository (on the owner's PC the home folder is one). Hooks and commands therefore act only when `.maestro/config.json` exists at the discovered root.
 
 ## 6. `maestro` CLI
@@ -112,16 +114,16 @@ Exit code 0 on success, 1 on error, 2 on a refused operation (claim denied, fail
 | `maestro claim <task> --actor <name>` | mkdir lock in `<git-common-dir>/maestro-locks/<task>`; checks status is `Ready` (or `To Do`) and no other assignee via `backlog task view --json`; then `backlog task edit <task> -a @<name> -s "In Progress"` in the main checkout; logs `task.claim` or `task.claim_denied` (exit 2) |
 | `maestro release <task> --actor <name> [--status S]` | removes the lock, optional status edit, logs `task.release` |
 | `maestro worktree <name> --goal <G>` | creates `.claude/worktrees/<name>` on branch `<name>` from `goal/<G>` (creates the goal branch from main if missing); prints the path |
-| `maestro context [--transcript P] [--json]` | context usage of a transcript (defaults to the current session if discoverable) |
+| `maestro context [--transcript P] [--json]` | context usage of a transcript (default: newest `.jsonl` under `~/.claude/projects/<cwd with non-alphanumerics as ->`) |
 | `maestro usage [--probe] [--json]` | last usage sample; `--probe` runs `claude -p "Reply OK" --output-format stream-json --verbose --model haiku --no-session-persistence </dev/null` and records `usage.sample` |
-| `maestro measure <task> --agent-id <id>[,<id>] [--interventions N] [--rework N]` | reads the subagent transcripts, writes `task.measure` |
-| `maestro status [--json]` | active GOAL, tasks by status, claims, last usage and context sample |
+| `maestro measure <task> --agent-id <id>[,<id>] [--transcript P] [--goal G] [--actor A] [--interventions N] [--rework N]` | reads `<session>/subagents/agent-<id>.jsonl` next to the session transcript (same default as `context`), writes `task.measure` |
+| `maestro status [--json]` | active GOAL (goal of the latest event that has one), tasks by status, claims (`owner.json` in the lock dir), last usage and context sample |
 
 ## 7. Hooks (plugin `hooks/hooks.json`)
 
 | Event | Script | Behaviour |
 | --- | --- | --- |
-| SessionStart (startup, resume, clear, compact) | `session-start.mjs` | runs the doctor checks quietly (warn via `systemMessage` only on failure); on `compact`/`clear`/`resume` injects `.maestro/handoff.md` (max 9,000 chars) as `additionalContext` |
+| SessionStart (startup, resume, clear, compact) | `session-start.mjs` | injects one line saying the session is the Maestro PM (plus a pointer to the handoff on startup); on `compact`/`clear`/`resume` injects `.maestro/handoff.md` (max 9,000 chars) as `additionalContext` |
 | UserPromptSubmit, PostToolUse | `context-watch.mjs` | main session only (skip when `agent_id` set); computes context %; on first crossing of each band per session injects one warning with the action to take; logs `context.band` |
 | PreCompact | `pre-compact.mjs` | prints preservation instructions (state lives in files; keep IDs of running agents, open decisions, next action) |
 | SubagentStart / SubagentStop | `agent-events.mjs` | logs `agent.start` / `agent.stop` with usage from `agent_transcript_path` |
@@ -133,4 +135,4 @@ Hooks must never block the session: catch every error, exit 0, and write diagnos
 
 ## 8. Tests
 
-`node --test plugins/maestro/test/` must pass on Windows (Git Bash and PowerShell). Tests use temporary git repos and a fake `backlog` executable where needed; they never touch the real project.
+`node --test` run from `plugins/maestro` must pass (a directory argument does not work on Node 24) on Windows (Git Bash and PowerShell). Tests use temporary git repos and a fake `backlog` executable where needed; they never touch the real project.
