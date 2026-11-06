@@ -36,7 +36,7 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
 | `.maestro/reports/<kind>/<id>.md` | yes | `task/<task-id>.md` (implementer report, saved by the architect at integration), `qa/QA-n*.md` (PM requirements and QA reports), `review/CR-n.md` (reviewer) |
 | `.maestro/runtime/` | no | usage cache, hook band state, misc runtime |
 | `<git-common-dir>/maestro-locks/<task-id>/` | no | claim locks, shared by all worktrees |
-| `.claude/worktrees/<name>/` | no | implementer worktrees |
+| `.claude/worktrees/<name>/` | no | implementer worktrees (`impl-n`); detached QA and review snapshots (`qa-QA-n`, `cr-CR-n`) |
 | `backlog/` | yes | Backlog.md tracker |
 | `docs/adr/` | yes | architecture decision records |
 
