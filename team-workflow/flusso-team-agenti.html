@@ -170,6 +170,7 @@ flowchart TB
   <li><b>Ondate successive:</b> le dettaglia quando la precedente è integrata nel ramo del GOAL, partendo da codice vero.</li>
   <li><b>Specifiche per simboli:</b> moduli, funzioni, tipi e contratti, mai numeri di riga.</li>
   <li><b>Controllo iniziale dell'implementatore:</b> verifica che ciò che è citato esista ancora così. Se non è così, il task torna all'architetto prima che parta del lavoro su una base superata.</li>
+  <li><b>Gruppi di task piccoli</b> (attrito #22 del pilota: ogni correzione piccola costava un implementatore): l'architetto può affidare più task piccoli (correzioni, debiti, i rilievi di un'ondata di correzioni) a <b>un solo implementatore</b>, nella stessa worktree e sullo stesso ramo. Ogni task resta un task, con ambito, criteri e test con nome propri; l'implementatore li prende, li chiude e li rilascia uno alla volta, mai due claim insieme, e restituisce un solo rapporto con lo stato di ciascuno. L'architetto rivede ogni task, integra il ramo una volta sola (un task che non può accettare esce dal gruppo con un revert) e misura il gruppo con <b>un solo comando</b> che nomina tutti i task (<code>maestro measure &lt;task&gt;,&lt;task&gt; --agent-id &lt;id&gt;</code>); la dashboard divide il costo dell'agente tra i task.</li>
 </ol>
 </section>
 

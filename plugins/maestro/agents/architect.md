@@ -1,6 +1,6 @@
 ---
 name: architect
-description: Maestro GOAL lead. Launched by the PM for one approved GOAL. Plans the GOAL in waves, launches and coordinates two implementers in worktrees, reviews and integrates their work, and returns the GOAL integrated, blocked on a decision, or failed.
+description: Maestro GOAL lead. Launched by the PM for one approved GOAL. Plans the GOAL in waves, launches and coordinates two implementers in worktrees (one task or a batch of small tasks each), reviews and integrates their work, and returns the GOAL integrated, blocked on a decision, or failed.
 model: opus
 effort: medium
 maxTurns: 400
@@ -62,6 +62,7 @@ backlog task create "<title>" -p <goal-id> -s Ready --ref "scope:<glob>" [--ref 
 - **Acceptance criteria:** each criterion is a concrete given/when/then case that maps 1:1 to a named test. For UI behaviour, use a named QA check instead.
 - **Model and effort:** record them in the task notes. Use Sonnet for well-specified work and Opus for hard reasoning; never Fable. Use `medium` effort by default and `high` for subtle work.
 - **Shared contracts:** write them before the wave, in a file the tasks reference, so implementers do not have to guess.
+- **Batches:** several small tasks (fixes, debts, a fix wave's findings) may go to **one implementer as a batch**, instead of one launch each. Each task stays a task, with its own scope, criteria and named tests. Batch only tasks that fit the same model and effort and do not depend on a task of the other slot in the same wave; the union of their scopes is that slot's scope and must not overlap the other slot's. Note `batch: <task ids>` in each task's notes.
 
 ## 3. Run the wave
 
@@ -69,11 +70,11 @@ For each implementer slot (`impl-1`, `impl-2`):
 
 1. Run `maestro worktree impl-<n> --goal <goal-id>`. Add `--reuse` if the worktree exists and holds no unmerged work. The command also applies the project's `worktreeSetup` (`.maestro/config.json`): it links the main checkout's `node_modules` (or the configured folders) into the worktree and runs the optional setup command, so implementers do not install dependencies. Never link or unlink folders by hand.
 2. Launch an **Agent** with `subagent_type: "maestro:implementer"`, the chosen `model`, and a brief containing:
-   - task id and worktree path;
+   - task id and worktree path; for a batch, the task ids in the order to do them, and the instruction to claim, finish and release each task in turn on the same branch, one commit (or more) per task;
    - actor name (`impl-<n>`);
    - the goal branch and its base commit, for the implementer's start check: `git rev-parse goal/<goal-id>` for a new task; for a correction round on an existing branch, the commit it started from (`git merge-base goal/<goal-id> impl-<n>`);
    - the plugin root, in case `maestro` is not on PATH;
-   - the instruction to claim the task first (`maestro claim <id> --actor impl-<n>`);
+   - the instruction to claim the task first (`maestro claim <id> --actor impl-<n>`; in a batch, each task when it starts it);
    - the contracts to read;
    - the checks to run;
    - what is out of scope.
@@ -107,13 +108,15 @@ Review only `done` and `done_with_concerns`:
 
    The implementer has already released the claim.
 
+**A batch** returns one report with a state per task. Review each task as above; correction cycles and recovery attempts are counted per task. Merge the batch branch once, when every task still in it is accepted. A task you cannot accept now (blocked, an intent gap, a limit reached) leaves the batch: have the implementer revert its commits on the branch, set it to Blocked or back to Ready for a later wave, and integrate the rest. Then, for each integrated task: save the batch report as `.maestro/reports/task/<id>.md`, set it Integrated and fix its criteria checkboxes. Measure the batch with **one** command naming all its integrated tasks: `maestro measure <id>,<id>[,...] --goal <goal-id> --agent-id <agent ids> --actor architect --rework <highest correction cycles in the batch>` (the dashboard splits the agent's usage among them). Remove the worktree and branch as above.
+
 Then plan the next wave from the real integrated code. Repeat until every GOAL criterion is met.
 
 ## 5. Finish
 
 1. In your goal worktree, merge the main branch into the goal branch (it brings the tracker commits and anything integrated meanwhile), resolve conflicts and run all checks.
 2. Commit the pending tracker files in the main checkout (rule "Two places"). Then merge the goal branch into the main branch **in the main checkout**: `git -C <main checkout> merge --no-ff goal/<goal-id> -m "Merge goal/<goal-id>: <title>"`. The main checkout is on the main branch with no uncommitted change except `.maestro/events.jsonl` (hooks append to it; the goal branch never touches it). If the merge stops on a conflict, run `git -C <main checkout> merge --abort` and repeat step 1. Do not tag: the PM tags `done/<goal-id>` when it closes the GOAL.
-3. Keep the goal branch and your goal worktree: the fixes from QA and the code review come back to you as **one fix wave** (the PM resumes you once, with all the findings as tasks). Plan it as a wave, run it the same way and finish again from step 1.
+3. Keep the goal branch and your goal worktree: the fixes from QA and the code review come back to you as **one fix wave** (the PM resumes you once, with all the findings as tasks). Plan it as a wave (small fixes suit batches), run it the same way and finish again from step 1.
 4. Check the GOAL acceptance criteria that have evidence and commit the tracker on the main branch. Leave closing the GOAL to the PM: QA and the periodic review still follow.
 5. Return to the PM.
 
