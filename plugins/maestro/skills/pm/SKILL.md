@@ -71,19 +71,18 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
 4. **GOAL end: QA and code review together, then one fix wave.** When the architect returns **integrated**:
    1. Check whether the periodic review is due (`maestro:periodic-review` section 1).
    2. Run `maestro usage --check` once for these launches. At `lower` or above, launch nothing (section 6): tell the owner and wait for the reset.
-   3. Prepare everything first: the QA snapshot, requirements and missions (`maestro:triage-qa` sections 1-2) and, when due, the review tag and snapshot (`maestro:periodic-review` section 2, steps 1-4).
+   3. Prepare everything first: the QA snapshot, requirements and missions (`maestro:triage-qa` sections 1-2) and, when due, the review range and snapshot (`maestro:periodic-review` section 2, steps 1-4).
    4. Launch all the QA missions and, when due, the code reviewer **in the same message**, in the foreground as both skills prescribe. They run in parallel, so you are busy for the longest of them, not for their sum. Tell the owner first that you will be back when they return.
    5. Triage both (`maestro:triage-qa` section 4, `maestro:periodic-review` section 3), then close both (`maestro:triage-qa` section 5 steps 1-5, `maestro:periodic-review` section 4 steps 1-3) and commit everything together on the main branch.
    6. If there are valid findings (QA defects, review violations, review debt placed in this GOAL), run `maestro usage --check` and resume the architect **once** with `SendMessage` to its agent id: one fix wave with every task id, its source (`qa:` or `review:` reference), its priority and any frozen area. If its agent id is no longer resumable (after a pause or in a new session), launch a fresh architect as in `maestro:start-goal` step 5, with `Fix wave: <task ids>` in the brief. Never forward findings to an architect while it is fixing: what turns up later waits for the next wave.
-   7. When the fix wave returns integrated, run a re-verification QA (`maestro:triage-qa`, on a new tag): one short mission per fixed defect. New defects go through steps 5-7 again. The critique limit (section 5) applies to this loop.
+   7. When the fix wave returns integrated, run a re-verification QA (`maestro:triage-qa`, on a new snapshot): one short mission per fixed defect. New defects go through steps 5-7 again. The critique limit (section 5) applies to this loop.
 5. Close the GOAL, on the main branch (your checkout is already there):
    - check its acceptance criteria with evidence;
    - set every Integrated subtask and the GOAL to Done;
    - a subtask that is not Integrated (an open defect or debt) must not be archived with the GOAL: with the owner, move it to the next GOAL or turn it into a standalone task (`backlog task edit <id> --parent ""` if supported, else recreate it and archive the old one with a pointer);
    - add a one-line history entry to `PLAN.md`;
-   - `maestro event goal.done --goal <goal-id> --actor pm`;
+   - after the closing commit below, `maestro event goal.done --goal <goal-id> --actor pm --data '{"commit":"<sha>"}'` with `<sha>` = `git rev-parse --short HEAD` (events.jsonl then changes after that commit, which is normal: it rides along in the next one);
    - archive the GOAL together with its Done tasks and commit everything in **one** commit on the main branch: tracker, `PLAN.md`, reports and `.maestro/events.jsonl` (hooks append events after other commits, so a pending change there is normal: always include it);
-   - tag that commit `done/<goal-id>` (never `goal/<id>`: that name is the goal branch);
    - clean up branches and worktrees (section 9);
    - report to the owner: outcome, evidence, limitations, external actions taken, branches cleaned up or kept, next step.
 
@@ -136,10 +135,10 @@ Agents never change permission modes. If a permission prompt reaches you, forwar
 
 ## 9. Cleaning up branches and worktrees
 
-Nothing else deletes branches, so you clean up at two moments: when you close a GOAL, after the `done/<goal-id>` tag (section 4, step 5), and after a fast-lane integration (section 10). Work from your checkout, on the main branch.
+Nothing else deletes branches, so you clean up at two moments: when you close a GOAL, after the closing commit (section 4, step 5), and after a fast-lane integration (section 10). Work from your checkout, on the main branch.
 
 1. **Worktrees first** (git refuses to delete a branch a worktree holds). Remove each leftover worktree of the GOAL with `maestro worktree <name> --remove`: the architect's `goal-<goal-id>`, and any `impl-<n>` whose work is integrated. Never delete a worktree folder by hand. A worktree holding uncommitted or unintegrated work is not leftover: keep it and report it to the owner.
-2. **Goal branch:** `git branch -d goal/<goal-id>`. It is merged, and the `done/<goal-id>` tag keeps the history. Never `-D`: if `-d` refuses, the branch holds commits the main branch lacks; report it to the owner.
+2. **Goal branch:** `git branch -d goal/<goal-id>`. It is merged, and the main branch keeps the history. Never `-D`: if `-d` refuses, the branch holds commits the main branch lacks; report it to the owner.
 3. **Implementer branches** of the GOAL still present: `git branch -d impl-<n>` once their worktree is gone. Never `-D`.
 4. **WIP branches** of the GOAL's tasks: `git branch --merged <mainBranch> --list "wip/*"` lists those whose work is integrated; delete those with `git branch -d wip/<task id>`. A `wip/` branch of the GOAL that is not in that list is reported to the owner, not deleted.
 5. **Remote:** deleting pushed branches on the remote (`git push origin --delete <branch>`) is a push. Do it only with push authority; otherwise give the owner the command.
