@@ -1,1 +1,3 @@
 .maestro/events.jsonl merge=union
+backlog/** text=auto eol=lf
+.maestro/** text=auto eol=lf
