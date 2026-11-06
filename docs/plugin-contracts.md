@@ -99,7 +99,7 @@ Computed from a transcript JSONL: sum of `message.usage` over `type:"assistant"`
 - `lib/events.mjs`: `appendEvent(root, type, fields)`, `readEvents(root)`, `makeEvent(type, fields, now)` (done).
 - `lib/context.mjs` (owned by the hooks task):
   - `contextUsage(transcriptPath, {window}) -> {model, contextTokens, window, percent, postCompactNoUsageYet, preCompactTokens}`: last main-chain assistant message (skip `isSidechain:true` and model `<synthetic>`), `input + cache_read + cache_creation`; reads the file backwards in 256 KB chunks; after a `compact_boundary` with no later assistant message returns `postCompactNoUsageYet:true`.
-  - `usageSummary(transcriptPath) -> {models, wallMs}` (section 5).
+  - `usageSummary(transcriptPath, {from, to} = {}) -> {models, wallMs}` (section 5). With `from` / `to` (ISO strings or ms), only assistant messages whose `timestamp` is in `[from, to)` count and `wallMs` is the span of those messages; the dashboard uses it to cost the PM session inside a GOAL window.
   - `subagentTranscriptPath(sessionTranscriptPath, agentId)`: `<dir>/<sessionId>/subagents/agent-<agentId>.jsonl`.
 
 Test seams: `MAESTRO_<TOOL>_BIN` (executable, no shell) and `MAESTRO_<TOOL>_ARGS` (JSON array of leading args) for `BACKLOG` and `CLAUDE`; `MAESTRO_TEST_CONTEXT_MODULE` replaces `lib/context.mjs`. Doctor is run by the CLI and skills, not by hooks (hooks stay fast).
