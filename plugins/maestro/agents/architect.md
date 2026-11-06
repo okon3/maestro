@@ -40,10 +40,9 @@ Use the `maestro` command for the team's operations; it is on PATH. If `maestro`
 3. Run `maestro doctor`. A failure is a capacity block: report it.
 4. Prepare your goal worktree. The PM created the goal branch without switching to it. If `git worktree list` already shows `.claude/worktrees/goal-<goal-id>` on `goal/<goal-id>` (a fix wave, or a resume on the same PC), reuse it. Otherwise:
    ```
-   maestro worktree goal-<goal-id> --detach goal/<goal-id>
-   git -C <printed path> switch goal/<goal-id>
+   maestro worktree goal-<goal-id> --checkout goal/<goal-id>
    ```
-   The first command creates the worktree with the project's `worktreeSetup` (linked `node_modules`, so checks run without an install); the second attaches it to the goal branch, which no other checkout holds. If the switch fails because the goal branch is checked out elsewhere, return **blocked**: the main checkout must stay on the main branch. Keep the worktree until the PM closes the GOAL; the PM removes it.
+   It creates the worktree on the goal branch, which no other checkout holds, with the project's `worktreeSetup` (linked `node_modules`, so checks run without an install). If it fails because the goal branch is checked out elsewhere, return **blocked**: the main checkout must stay on the main branch. Keep the worktree until the PM closes the GOAL; the PM removes it.
 
 ## 2. Plan one wave
 
@@ -58,6 +57,8 @@ backlog task create "<title>" -p <goal-id> -s Ready --ref "scope:<glob>" [--ref 
 ```
 
 - **Scope:** give each task a file scope. Two tasks running at the same time must not share files. Reference modules, functions, types and contracts by name, never by line number.
+  - When a task changes a component's props or a function's signature, put its callers and composers in the scope too.
+  - To widen a task's scope later, use `backlog task edit <id> --add-ref "scope:<glob>"`. Never `--ref`: it replaces all the references.
 - **Shared files** (package manifests, lockfiles, shared types, config) are owned by **one task per wave**: only that task has them in scope. Other tasks that need a change there ask for it in their report; you add it to the owner task or to the next wave.
 - **Acceptance criteria:** each criterion is a concrete given/when/then case that maps 1:1 to a named test. For UI behaviour, use a named QA check instead.
 - **Model and effort:** record them in the task notes. Use Sonnet for well-specified work and Opus for hard reasoning; never Fable. Use `medium` effort by default and `high` for subtle work.
@@ -101,14 +102,13 @@ Review only `done` and `done_with_concerns`:
 4. **To integrate:**
    - in your goal worktree, `git merge --no-ff impl-<n>` into the goal branch;
    - run the project's standard checks there;
-   - save the implementer's final report as `.maestro/reports/task/<id>.md` in the main checkout;
    - `backlog task edit <id> -s Integrated`; the implementer checked each criterion when its test passed: uncheck (`--uncheck-ac <n>`) any you do not accept, and check any it missed;
-   - `maestro measure <id> --goal <goal-id> --agent-id <agent ids> --actor architect --rework <correction cycles>`;
+   - `maestro measure <id> --goal <goal-id> --agent-id <agent ids> --actor architect --rework <correction cycles>`. It also saves the implementer's final report as `.maestro/reports/task/<id>.md` from its transcript (never copy it by hand). For a batch (one implementer, several tasks) list them all once: `maestro measure <id>,<id> ...`;
    - remove the worktree with `maestro worktree impl-<n> --remove` (it unlinks the shared folders first, so the main checkout's packages are never deleted through a junction), then delete its branch (`git branch -d impl-<n>`). If the removal fails because a process holds the worktree, the command says so: stop the process (usually a dev or preview server the implementer left running) and retry.
 
    The implementer has already released the claim.
 
-**A batch** returns one report with a state per task. Review each task as above; correction cycles and recovery attempts are counted per task. Merge the batch branch once, when every task still in it is accepted. A task you cannot accept now (blocked, an intent gap, a limit reached) leaves the batch: have the implementer revert its commits on the branch, set it to Blocked or back to Ready for a later wave, and integrate the rest. Then, for each integrated task: save the batch report as `.maestro/reports/task/<id>.md`, set it Integrated and fix its criteria checkboxes. Measure the batch with **one** command naming all its integrated tasks: `maestro measure <id>,<id>[,...] --goal <goal-id> --agent-id <agent ids> --actor architect --rework <highest correction cycles in the batch>` (the dashboard splits the agent's usage among them). Remove the worktree and branch as above.
+**A batch** returns one report with a state per task. Review each task as above; correction cycles and recovery attempts are counted per task. Merge the batch branch once, when every task still in it is accepted. A task you cannot accept now (blocked, an intent gap, a limit reached) leaves the batch: have the implementer revert its commits on the branch, set it to Blocked or back to Ready for a later wave, and integrate the rest. Then, for each integrated task: set it Integrated and fix its criteria checkboxes. Measure the batch with **one** command naming all its integrated tasks: `maestro measure <id>,<id>[,...] --goal <goal-id> --agent-id <agent ids> --actor architect --rework <id>=<cycles>,<id>=<cycles>` (a single number applies to every task; the dashboard splits the agent's usage among them). It saves the batch report as `.maestro/reports/task/<id>.md` for each task. Remove the worktree and branch as above.
 
 Then plan the next wave from the real integrated code. Repeat until every GOAL criterion is met.
 

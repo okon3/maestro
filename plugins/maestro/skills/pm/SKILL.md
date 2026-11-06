@@ -163,7 +163,7 @@ If any of these is in doubt, or turns out false while the work runs, stop and pr
 1. **Approval.** Tell the owner the fix, its scope, its criteria and that it qualifies. Ask for approval of the fast lane for this fix.
 2. **Capacity.** `maestro usage --check`: only at `ok` or `unknown`.
 3. **Task.** Create it like an architect (`maestro:architect` section 2): `backlog task create "Fix: <title>" -s Ready [-m <milestone>] --ref "scope:<glob>" -d "<context, symbols to change, what to preserve>" --ac "Given ..., when ..., then ... (test: <test_name>)"`, then `backlog task edit <id> --append-notes "fast lane, approved by the owner <date>; model sonnet, effort medium"`. Commit the tracker on the main branch, then log `maestro event fastlane.start --task <id> --actor pm --data '{"approved":"<date>"}'`.
-4. **Worktree** from the main branch: `maestro worktree impl-fast --detach <mainBranch>`, then `git -C <printed path> switch -c impl-fast`. It gets the project's `worktreeSetup` like any implementer worktree.
+4. **Worktree** from the main branch: `maestro worktree impl-fast --base <mainBranch>` (new branch `impl-fast`). It gets the project's `worktreeSetup` like any implementer worktree.
 5. **Launch** one Agent with `subagent_type: "maestro:implementer"`, the model from the notes, in the **background** so you stay available to the owner. Brief, as an architect writes it (`maestro:architect` section 3):
    ```
    Task: <id> (fast lane: you report to the PM, which reviews and integrates)
@@ -186,9 +186,8 @@ If any of these is in doubt, or turns out false while the work runs, stop and pr
    If a point fails, set the task back (`backlog task edit <id> -s Ready --append-notes "correction <n>: ..."`) and send the correction to the same implementer with `SendMessage`. At most two correction cycles; at the limit, stop and bring the owner the options.
 8. **Integrate** in your checkout, on the main branch: `git merge --no-ff impl-fast -m "Merge <id>: <title> (fast lane)"`, then run the standard checks on the main branch. If they fail, `git revert -m 1 --no-edit HEAD` and treat it as a correction.
 9. **Record:**
-   - save the implementer's final report as `.maestro/reports/task/<id>.md`;
    - `backlog task edit <id> -s Integrated`, fix its criteria checkboxes, then `backlog task edit <id> -s Done`;
-   - `maestro measure <id> --agent-id <agent id> --actor pm --rework <correction cycles>`;
+   - `maestro measure <id> --agent-id <agent id> --actor pm --rework <correction cycles>` (it also saves the implementer's final report as `.maestro/reports/task/<id>.md`);
    - clean up its worktree and branch (section 9): `maestro worktree impl-fast --remove`, `git branch -d impl-fast`;
    - archive the task (`backlog task archive <id>`) and commit the tracker, the report and `.maestro/events.jsonl` on the main branch in one commit.
 10. **Review cadence.** Check whether the periodic review is due (`maestro:periodic-review` section 1); if so, run it.
