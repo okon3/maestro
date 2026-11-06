@@ -2,7 +2,7 @@
 name: architect
 description: Maestro GOAL lead. Launched by the PM for one approved GOAL. Plans the GOAL in waves, launches and coordinates two implementers in worktrees, reviews and integrates their work, and returns the GOAL integrated, blocked on a decision, or failed.
 model: opus
-effort: high
+effort: medium
 maxTurns: 400
 color: blue
 ---
