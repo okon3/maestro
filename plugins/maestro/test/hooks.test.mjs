@@ -232,3 +232,12 @@ test("context_hook_writes_runtime", () => {
   run("context-watch", { ...base, agent_id: "ag1", transcript_path: at(900) });
   assert.equal(JSON.parse(readFileSync(file, "utf8")).percent, 56);
 });
+
+test("claim_command_binds_agent_id", () => {
+  const dir = tempRepo();
+  guard(dir, "Bash", { command: "maestro claim task-1.2 --actor impl-2" });
+  guard(dir, "PowerShell", { command: 'node "C:/x/scripts/cli.mjs" claim TASK-1.1 --actor impl-1' }, { agent_id: "ag2" });
+  guard(dir, "Bash", { command: "maestro claim TASK-1.3 --actor impl-1" }, {}); // main session: no binding
+  const binds = readEvents(dir).filter((e) => e.type === "agent.bind").map((e) => [e.agentId, e.actor, e.task]);
+  assert.deepEqual(binds, [["ag1", "impl-2", "TASK-1.2"], ["ag2", "impl-1", "TASK-1.1"]]);
+});

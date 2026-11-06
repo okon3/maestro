@@ -222,3 +222,41 @@ test("state_counts_review", () => {
   assert.equal(s.header.review.integratedSinceLast, 1);
   assert.equal(s.git.tags.find((t) => t.name === "cr/CR-1").date, "2026-11-06T14:00:00.000Z");
 });
+
+test("state_pairs_simultaneous_agents_by_binding", () => {
+  // Two implementers start in the same millisecond; claims arrive in the opposite order.
+  const s = buildState(
+    {
+      events: [
+        { ts: "2026-11-06T15:43:58.576Z", type: "agent.start", agentId: "A", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T15:43:58.577Z", type: "agent.start", agentId: "B", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T15:44:03.600Z", type: "agent.bind", agentId: "B", actor: "impl-2", task: "TASK-1.2" },
+        { ts: "2026-11-06T15:44:03.681Z", type: "task.claim", actor: "impl-2", task: "TASK-1.2" },
+        { ts: "2026-11-06T15:44:05.900Z", type: "agent.bind", agentId: "A", actor: "impl-1", task: "TASK-1.1" },
+        { ts: "2026-11-06T15:44:05.998Z", type: "task.claim", actor: "impl-1", task: "TASK-1.1" },
+      ],
+    },
+    new Date("2026-11-06T15:50:00Z"),
+  );
+  const by = Object.fromEntries(s.agents.map((a) => [a.agentId, [a.actor, a.task]]));
+  assert.deepEqual(by, { A: ["impl-1", "TASK-1.1"], B: ["impl-2", "TASK-1.2"] });
+});
+
+test("state_pairs_finished_agent_by_release", () => {
+  // No bindings (older plugin): the agent that stops right after a release owns that task.
+  const s = buildState(
+    {
+      events: [
+        { ts: "2026-11-06T15:43:58.576Z", type: "agent.start", agentId: "A", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T15:43:58.577Z", type: "agent.start", agentId: "B", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T15:44:03.681Z", type: "task.claim", actor: "impl-2", task: "TASK-1.2" },
+        { ts: "2026-11-06T15:44:05.998Z", type: "task.claim", actor: "impl-1", task: "TASK-1.1" },
+        { ts: "2026-11-06T15:48:21.422Z", type: "task.release", actor: "impl-2", task: "TASK-1.2" },
+        { ts: "2026-11-06T15:48:33.386Z", type: "agent.stop", agentId: "B", data: { agentType: "maestro:implementer" } },
+      ],
+    },
+    new Date("2026-11-06T15:50:00Z"),
+  );
+  const by = Object.fromEntries(s.agents.map((a) => [a.agentId, [a.actor, a.task, a.state]]));
+  assert.deepEqual(by, { A: ["impl-1", "TASK-1.1", "running"], B: ["impl-2", "TASK-1.2", "finished"] });
+});

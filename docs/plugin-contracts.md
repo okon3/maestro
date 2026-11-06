@@ -75,6 +75,7 @@ Event types (wave 1):
 | `task.status` | Backlog.md `onStatusChange` via `maestro event` (runs with `sh -c`; needs `sh` on PATH, checked by `maestro doctor`) | `{from, to}` (no title: shell quoting) |
 | `task.claim` / `task.claim_denied` / `task.release` | `maestro claim` / `maestro release` | `{reason?}` |
 | `agent.start` / `agent.stop` | SubagentStart / SubagentStop hooks | `{agentType}`; stop adds `{usage}` (section 5) |
+| `agent.bind` | PreToolUse hook (`secret-guard.mjs`) when a subagent runs `maestro claim <task> --actor <name>` | none (`agentId`, `actor`, `task` at top level) |
 | `task.measure` | `maestro measure` (architect, when a task is integrated) | `{agentIds, usage, wallMs, ownerInterventions, reworkCycles}` |
 | `session.compact` | PreCompact / SessionStart(compact) hooks | `{trigger, phase}` |
 | `limit.hit` | StopFailure hook | `{error}` |

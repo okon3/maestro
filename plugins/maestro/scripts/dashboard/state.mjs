@@ -10,6 +10,7 @@ import { PRICES_AS_OF, PRICES_SOURCE, costUsd } from "./prices.mjs";
 const STALE_MS = 30 * 60 * 1000;
 const AGENT_RUNNING_MS = 12 * 60 * 60 * 1000;
 const CLAIM_WINDOW_MS = 2 * 60 * 1000;
+const RELEASE_WINDOW_MS = 2 * 60 * 1000;
 const DONE_STATUSES = new Set(["done", "integrated"]);
 
 // ---------------------------------------------------------------------------------------------
@@ -190,16 +191,43 @@ function buildAgents(events, now) {
     for (const id of e.data?.agentIds ?? []) measured.set(id, normId(e.task));
   }
   const actorByTask = new Map(claims.map((c) => [normId(c.e.task), c.e.actor]));
+  // agent.bind: written by the PreToolUse hook when a subagent runs `maestro claim` (exact agent id).
+  const bound = new Map();
+  for (const e of events) if (e.type === "agent.bind" && e.agentId && e.task) bound.set(e.agentId, { task: normId(e.task), actor: e.actor ?? null });
+  // An implementer stops right after it releases its task: pair a stop with the latest release before it.
+  const releases = events.filter((e) => e.type === "task.release" && e.task).map((e) => ({ e, t: Date.parse(e.ts), used: false }));
   const agents = [];
   const ordered = [...starts.values()].sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+  // Pass 1: exact or near-exact links (task.measure, agent.bind, a release just before the stop), so that
+  // the time-order heuristic of pass 2 never takes a claim that belongs to another agent.
+  const links = new Map();
+  const markClaims = (task) => claims.filter((c) => normId(c.e.task) === task).forEach((c) => (c.used = true));
+  for (const s of ordered) {
+    const type = s.data?.agentType ?? "";
+    const stop = stops.get(s.agentId);
+    let task = measured.get(s.agentId) ?? bound.get(s.agentId)?.task ?? null;
+    let actor = bound.get(s.agentId)?.actor ?? (task ? actorByTask.get(task) ?? null : null);
+    if (!task && stop && /implementer/.test(type)) {
+      const tStop = Date.parse(stop.ts);
+      const rel = releases.filter((r) => !r.used && r.t <= tStop && tStop - r.t <= RELEASE_WINDOW_MS).sort((x, y) => y.t - x.t)[0];
+      if (rel) {
+        rel.used = true;
+        task = normId(rel.e.task);
+        actor = rel.e.actor ?? null;
+      }
+    }
+    if (task) {
+      markClaims(task);
+      links.set(s.agentId, { task, actor });
+    }
+  }
+  // Pass 2: remaining implementers take the first unused claim within 2 minutes of their start.
   for (const s of ordered) {
     const t0 = Date.parse(s.ts);
     const stop = stops.get(s.agentId) ?? null;
     const type = s.data?.agentType ?? null;
-    let task = measured.get(s.agentId) ?? null;
-    let actor = task ? actorByTask.get(task) ?? null : null;
+    let { task = null, actor = null } = links.get(s.agentId) ?? {};
     if (!task && /implementer/.test(type ?? "")) {
-      // Running or unmeasured implementer: the first unused claim within 2 minutes of its start names actor and task.
       const claim = claims.find((c) => !c.used && c.t >= t0 && c.t - t0 <= CLAIM_WINDOW_MS);
       if (claim) {
         claim.used = true;

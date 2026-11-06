@@ -69,7 +69,7 @@ Rules:
 - **Active GOAL:** the task labelled `goal` with status In Progress. If there are several, take the most recently updated.
 - **`header.ownerWaiting`:** decisions with status `open` or `proposed`, plus Blocked tasks.
 - **Review counter:** `task.status` events to `Integrated` after the date of the latest `cr/CR-*` tag (all of them if there is no tag).
-- **Agents:** pair `agent.start` and `agent.stop` events by `agentId`. Running means no stop yet and a start less than 12 hours old. Link an agent to a task and actor through the nearest `task.claim` that follows its start within 2 minutes, by the same actor's claim.
+- **Agents:** pair `agent.start` and `agent.stop` events by `agentId`. Link an agent to its task and actor in this order: `task.measure` agent ids, then `agent.bind` (exact, written by the hook at claim time), then for a stopped implementer the latest `task.release` in the 2 minutes before its stop, and only then the time-order heuristic below (parallel agents can start in the same millisecond). Running means no stop yet and a start less than 12 hours old. Link an agent to a task and actor through the nearest `task.claim` that follows its start within 2 minutes, by the same actor's claim.
 - **Stale:** `context` and `usage` are stale when older than 30 minutes.
 - **USD:** `sum(tokens × price / 1e6)` over the models that have a price, rounded to cents; `null` only when no model has a price. Unpriced models are listed in `costs.unpriced` and the page flags such sums as partial. A GOAL sums its tasks the same way.
 - **Agents `state`:** `running` or `finished`. `actor` and `task` are null when no claim follows the start (architect, QA, reviewer).

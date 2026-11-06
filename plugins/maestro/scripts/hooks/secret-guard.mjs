@@ -1,5 +1,11 @@
-// PreToolUse: deny subagents access to secret files (.env, keys, config secretPaths). The main session is never blocked.
+// PreToolUse in subagents: deny access to secret files (.env, keys, config secretPaths), and bind the agent id
+// to the actor and task of a `maestro claim` it runs (the dashboard needs it: parallel agents start in the same
+// millisecond, so time order cannot tell them apart). The main session is never blocked.
+import { appendEvent } from "../lib/events.mjs";
 import { runHook } from "./_run.mjs";
+
+// `maestro claim <task> --actor <name>`, also through `node .../cli.mjs claim`.
+const CLAIM = /(?:\bmaestro(?:\.cmd)?|cli\.mjs["']?)\s+claim\s+([A-Za-z0-9][\w.-]*)\s+--actor\s+["']?([A-Za-z0-9][\w.-]*)/;
 
 // Built-in rules, tested on the file name (last path segment), case-insensitive.
 const BUILTIN = [/^\.env$/i, /^\.env\..+$/i, /^.+\.pem$/i, /^.+\.key$/i, /^id_rsa/i, /^id_ed25519/i];
@@ -53,7 +59,9 @@ function targets(toolName, toolInput = {}) {
 
 await runHook(
   "secret-guard",
-  ({ input, config }) => {
+  ({ input, root, config }) => {
+    const claim = typeof input.tool_input?.command === "string" ? CLAIM.exec(input.tool_input.command) : null;
+    if (claim) appendEvent(root, "agent.bind", { agentId: input.agent_id, actor: claim[2], task: claim[1].toUpperCase(), data: {} });
     const globs = (Array.isArray(config.secretPaths) ? config.secretPaths : [])
       .filter((g) => typeof g === "string" && g.trim())
       .map(globRegex);
