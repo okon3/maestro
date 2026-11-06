@@ -7,10 +7,12 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gitCommonDir, loadConfig } from "./lib/config.mjs";
-import { appendEvent, readEvents } from "./lib/events.mjs";
+import { KNOWN_EVENT_TYPES, appendEvent, readEvents } from "./lib/events.mjs";
 import { backlogVersion, editTask, listTasks, viewTask } from "./lib/backlog.mjs";
 import { DEFAULT_PORT, runtimeFile, startServer } from "./dashboard/server.mjs";
-import { branchExists, findWorktree, git, refExists, worktreeBranch, worktreePath } from "./lib/git.mjs";
+import { finalReport, writeTaskReport } from "./lib/report.mjs";
+import { pluginVersionCheck } from "./lib/plugin.mjs";
+import { branchExists, findWorktree, git, listWorktrees, refExists, worktreeBranch, worktreePath } from "./lib/git.mjs";
 import { applySetup, explainRemoveFailure, isInside, normalizeSetup, removeLinks, restoreLinks, worktreeBusy } from "./lib/worktree.mjs";
 import {
   clearInterrupted,
@@ -34,7 +36,7 @@ class CliError extends Error {
   }
 }
 
-const BOOLEAN_FLAGS = new Set(["json", "probe", "check", "reuse", "no-open", "stop", "foreground", "remove", "force", "on", "off"]);
+const BOOLEAN_FLAGS = new Set(["json", "probe", "check", "reuse", "no-open", "stop", "foreground", "remove", "force", "on", "off", "no-report"]);
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function parseArgs(argv) {
@@ -80,6 +82,9 @@ async function loadContextModule() {
     throw new CliError(`cannot load lib/context.mjs: ${e.message}`);
   }
 }
+
+// Plugin root of the running CLI (the session's plugin version); tests point it elsewhere.
+const pluginRoot = () => process.env.MAESTRO_TEST_PLUGIN_ROOT || fileURLToPath(new URL("..", import.meta.url)).replace(/[\\/]+$/, "");
 
 // Newest transcript of the current project under ~/.claude/projects (best effort).
 function discoverTranscript() {
@@ -203,6 +208,27 @@ const COMMANDS = {
     add("sh", sh.status === 0, sh.status === 0 ? "available" : "not on PATH", "run Claude Code from Git Bash or add Git's usr\\bin to PATH (task.status events need it)", true);
     add("config", !!config, config ? "valid" : "invalid or not in a git repository", "fix .maestro/config.json");
     add("maestro-init", initialized, initialized ? "initialized" : ".maestro/config.json not found", "run the init skill", true);
+    const plugin = pluginVersionCheck({ runningRoot: pluginRoot(), projectRoot: root ?? process.cwd() });
+    const pluginDetail = {
+      same: `this session runs the installed version ${plugin.runningVersion}`,
+      dev: `running from ${plugin.running} (a checkout, not the plugin cache)`,
+      "not-installed": `${plugin.runningVersion} (no maestro@okon3 install recorded for this project)`,
+      unknown: plugin.note ?? "installed version unknown",
+      differs: `this session runs ${plugin.runningVersion}, installed is ${plugin.installedVersion}; ${
+        plugin.note ?? (plugin.changes.length ? `skills/agents changed: ${plugin.changes.map((c) => `${c.file} (${c.change})`).join(", ")}` : "no skills or agents file changed")
+      }`,
+    }[plugin.status];
+    checks.push({
+      name: "plugin-version",
+      ok: plugin.status !== "differs" && plugin.status !== "unknown",
+      warn: true,
+      detail: pluginDetail,
+      fix:
+        plugin.status === "differs"
+          ? "/reload-plugins is the owner's command (agents cannot run it): ask the owner to run it or restart the session; until then this session uses the old skills and agents"
+          : "check ~/.claude/plugins/installed_plugins.json",
+      plugin,
+    });
     const failed = checks.filter((c) => !c.ok && !c.warn);
     if (flags.json) console.log(JSON.stringify({ ok: failed.length === 0, checks }));
     else {
@@ -224,6 +250,8 @@ const COMMANDS = {
         throw new CliError("--data must be valid JSON");
       }
     }
+    // An unknown type is logged anyway (a new skill may add one): the warning catches typos.
+    if (!KNOWN_EVENT_TYPES.has(type)) console.error(`maestro: warning: unknown event type "${type}", logged anyway (known types: docs/plugin-contracts.md section 4)`);
     const event = appendEvent(root, type, { goal: flags.goal, task: flags.task, actor: flags.actor, data });
     out(flags, event, `logged ${type}`);
     return 0;
@@ -300,8 +328,9 @@ const COMMANDS = {
     }
     const path = worktreePath(root, name);
     if (flags.remove) return removeWorktree(root, name, path, setup, flags);
+    const modes = ["goal", "detach", "checkout", "base"].filter((m) => flags[m] !== undefined);
+    if (modes.length > 1) throw new CliError(`use only one of --goal, --detach, --checkout, --base (got ${modes.map((m) => `--${m}`).join(", ")})`);
     const detach = flags.detach;
-    const goal = detach === undefined ? requireName(flags.goal, "--goal") : null;
     const existing = findWorktree(root, path);
     const finish = (result, created) => {
       const { linked, warnings, run } = applySetup(root, path, setup, { runCommand: created });
@@ -328,6 +357,46 @@ const COMMANDS = {
       git(root, ["worktree", "add", "-q", "--detach", path, detach]);
       return finish({ path, detached: true, ref: detach }, true);
     }
+    if (flags.checkout !== undefined) {
+      // An existing branch (the architect's goal worktree `goal-<G>` on `goal/<G>`): no new branch.
+      const branch = flags.checkout;
+      if (branch.startsWith("-") || !/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(branch)) throw new CliError(`invalid branch for --checkout: ${branch}`);
+      if (existsSync(path) || existing) {
+        if (flags.reuse && existing?.branch === branch) return finish({ path, branch, reused: true }, false);
+        console.error(`refused: worktree path "${name}" already exists (use --reuse to reuse it on branch ${branch})`);
+        return 2;
+      }
+      if (!branchExists(root, branch)) {
+        // After a fresh clone the branch may exist only on the remote: track it.
+        if (refExists(root, `refs/remotes/origin/${branch}`)) git(root, ["branch", branch, `origin/${branch}`]);
+        else throw new CliError(`unknown branch for --checkout: ${branch}`);
+      }
+      const holder = listWorktrees(root).find((w) => w.branch === branch);
+      if (holder) {
+        console.error(`refused: branch ${branch} is checked out at ${holder.path}; a branch can be in one checkout only`);
+        return 2;
+      }
+      git(root, ["worktree", "add", "-q", path, branch]);
+      return finish({ path, branch, checkout: true }, true);
+    }
+    if (flags.base !== undefined) {
+      // A new branch named like the worktree from any ref (the fast lane's `impl-fast` from the main branch).
+      const base = flags.base;
+      if (existsSync(path) || branchExists(root, name) || existing) {
+        if (flags.reuse && existing?.branch === name) return finish({ path, branch: name, reused: true }, false);
+        console.error(`refused: worktree path or branch "${name}" already exists (use --reuse to reuse it)`);
+        return 2;
+      }
+      try {
+        if (base.startsWith("-")) throw new Error("not a ref");
+        git(root, ["rev-parse", "--verify", "--quiet", `${base}^{commit}`]);
+      } catch {
+        throw new CliError(`unknown ref for --base: ${base}`);
+      }
+      git(root, ["worktree", "add", "-q", "-b", name, path, base]);
+      return finish({ path, branch: name, base }, true);
+    }
+    const goal = requireName(flags.goal, "--goal");
     const goalBranch = `${config.goalBranchPrefix}${goal}`;
     const existingBranch = existing?.branch ?? null;
     if (existsSync(path) || branchExists(root, name) || existingBranch) {
@@ -413,19 +482,24 @@ const COMMANDS = {
     return 0;
   },
 
-  async measure([task], flags) {
-    const id = requireName(task, "task id").toUpperCase();
+  // Measures one task, or a batch of tasks done by the same agents, and saves the implementer's final report
+  // (from its subagent transcript) as .maestro/reports/task/<id>.md for each task.
+  async measure([tasks], flags) {
+    const usage = "usage: maestro measure <task>[,<task>...] --agent-id <id>[,<id>] [--force] [--no-report]";
+    const ids = [...new Set((tasks ?? "").split(",").map((s) => s.trim()).filter(Boolean).map((t) => requireName(t, "task id").toUpperCase()))];
     const agentIds = (flags["agent-id"] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-    if (!agentIds.length) throw new CliError("usage: maestro measure <task> --agent-id <id>[,<id>]");
+    if (!ids.length || !agentIds.length) throw new CliError(usage);
     const { root } = context();
     const session = flags.transcript ?? discoverTranscript();
     if (!session) throw new CliError("no session transcript given and none discoverable (use --transcript)");
     const mod = await loadContextModule();
     const models = {};
     let wallMs = 0;
+    const paths = [];
     for (const agentId of agentIds) {
       const path = mod.subagentTranscriptPath(session, agentId);
       if (!existsSync(path)) throw new CliError(`subagent transcript not found: ${path}`);
+      paths.push({ agentId, path });
       const u = mod.usageSummary(path);
       wallMs += u.wallMs ?? 0;
       for (const [model, t] of Object.entries(u.models ?? {})) {
@@ -433,15 +507,42 @@ const COMMANDS = {
         for (const k of Object.keys(sum)) sum[k] += t[k] ?? 0;
       }
     }
-    const data = {
+    // A batch: every task gets the same agents and usage; the dashboard splits a shared agent evenly among them.
+    const batch = ids.length > 1 ? ids : undefined;
+    const rework = parseRework(flags.rework, ids);
+    const data = (id) => ({
       agentIds,
       usage: { models, wallMs },
       wallMs,
       ownerInterventions: Number(flags.interventions ?? 0),
-      reworkCycles: Number(flags.rework ?? 0),
-    };
-    const event = appendEvent(root, "task.measure", { actor: flags.actor, goal: flags.goal, task: id, data });
-    out(flags, event, `measured ${id}: ${Object.keys(models).length} model(s), ${wallMs} ms`);
+      reworkCycles: rework(id),
+      ...(batch ? { batch } : {}),
+    });
+    const events = ids.map((id) => appendEvent(root, "task.measure", { actor: flags.actor, goal: flags.goal, task: id, data: data(id) }));
+    const reports = [];
+    if (!flags["no-report"]) {
+      const found = paths.map(({ agentId, path }) => ({ agentId, report: finalReport(path) })).filter((r) => r.report);
+      if (!found.length) console.error(`maestro: warning: no final report found in the transcript(s) of ${agentIds.join(", ")}; no report written`);
+      else {
+        for (const r of found) if (!r.report.hasState) console.error(`maestro: warning: agent ${r.agentId}'s last message has no STATE line; saved as it is`);
+        const bodies = found.map((r) => ({ agentId: r.agentId, text: r.report.text }));
+        for (const id of ids) {
+          let title = null;
+          try {
+            title = viewTask(id, root).title ?? null;
+          } catch {
+            // tracker unavailable: the heading falls back to "implementer report"
+          }
+          const w = writeTaskReport(root, { task: id, title, batch, agentIds, models: Object.keys(models), wallMs, reports: bodies, force: !!flags.force });
+          reports.push({ task: id, path: w.path, action: w.action });
+        }
+      }
+    }
+    const lines = ids.map((id) => {
+      const r = reports.find((x) => x.task === id);
+      return `measured ${id}: ${Object.keys(models).length} model(s), ${wallMs} ms${batch ? ` (batch of ${ids.length})` : ""}${r ? `; report ${r.action}: ${r.path}` : ""}`;
+    });
+    out(flags, { events, reports }, lines.join("\n"));
     return 0;
   },
 
@@ -502,10 +603,19 @@ const COMMANDS = {
   status(args, flags) {
     const { root } = context();
     const byStatus = {};
+    const goals = []; // GOALs In Progress: the active ones
+    const proposed = []; // GOALs awaiting the owner's approval, listed apart from the tasks
     let tasksError = null;
     try {
       for (const t of listTasks(root)) {
-        (byStatus[t.status ?? "?"] ??= []).push({ id: t.id, title: t.title, assignees: t.assignees ?? [] });
+        const labels = Array.isArray(t.labels) ? t.labels : [];
+        const row = { id: t.id, title: t.title, assignees: t.assignees ?? [] };
+        if (labels.includes("goal") && labels.includes("proposed")) {
+          proposed.push({ id: t.id, title: t.title, status: t.status ?? null });
+          continue;
+        }
+        if (labels.includes("goal") && t.status === "In Progress") goals.push(t.id);
+        (byStatus[t.status ?? "?"] ??= []).push(row);
       }
     } catch (e) {
       tasksError = e.message;
@@ -513,15 +623,20 @@ const COMMANDS = {
     const claims = activeClaims(root);
     const events = readEvents(root);
     const last = (type) => [...events].reverse().find((e) => e.type === type) ?? null;
-    const goal = [...events].reverse().find((e) => e.goal)?.goal ?? null;
+    // The tracker says which GOAL is active; an old event carrying a goal field does not.
+    const goal = goals[0] ?? null;
     const pause = readPause(root);
     const interrupted = readInterrupted(root);
-    const result = { goal, tasks: byStatus, tasksError, claims, lastUsage: last("usage.sample"), lastContext: last("context.band"), pause, interrupted };
+    const result = { goal, goals, proposed, tasks: byStatus, tasksError, claims, lastUsage: last("usage.sample"), lastContext: last("context.band"), pause, interrupted };
     if (flags.json) console.log(JSON.stringify(result));
     else {
       if (interrupted) console.log(interruptedNotice(interrupted));
       if (pause) console.log(`PAUSED since ${pause.since}${pause.reason ? ` (${pause.reason})` : ""}: new claims and Maestro agent launches are refused`);
-      console.log(`goal: ${goal ?? "-"}`);
+      console.log(`${goals.length > 1 ? "goals" : "goal"}: ${goals.length ? goals.join(", ") : "-"}`);
+      if (proposed.length) {
+        console.log(`awaiting approval (${proposed.length})`);
+        for (const g of proposed) console.log(`  ${g.id} ${g.title}`);
+      }
       if (tasksError) console.log(`tasks unavailable: ${tasksError}`);
       for (const [s, list] of Object.entries(byStatus)) {
         console.log(`${s} (${list.length})`);
@@ -581,6 +696,31 @@ const COMMANDS = {
     return failed.length ? 1 : 0;
   },
 };
+
+/**
+ * `--rework` of `maestro measure`: a number for every task (default 0), or per task as `TASK-a=1,TASK-b=0`
+ * (a task of the batch not listed gets 0). Returns id -> cycles.
+ */
+function parseRework(value, ids) {
+  if (value === undefined) return () => 0;
+  const count = (v) => {
+    if (!/^\d+$/.test(String(v).trim())) throw new CliError(`invalid --rework count: ${v}`);
+    return Number(v);
+  };
+  if (!String(value).includes("=")) {
+    const n = count(value);
+    return () => n;
+  }
+  const map = new Map();
+  for (const part of String(value).split(",").map((s) => s.trim()).filter(Boolean)) {
+    const [task, n, extra] = part.split("=");
+    const id = (task ?? "").trim().toUpperCase();
+    if (extra !== undefined || n === undefined) throw new CliError(`invalid --rework entry: ${part} (use TASK-a=1,TASK-b=0)`);
+    if (!ids.includes(id)) throw new CliError(`--rework names ${id}, which is not among the measured tasks (${ids.join(", ")})`);
+    map.set(id, count(n));
+  }
+  return (id) => map.get(id) ?? 0;
+}
 
 /** Active claims: one lock directory per task, with `owner.json` once the claim succeeded. */
 function activeClaims(root) {

@@ -150,6 +150,53 @@ test("worktree_detached_snapshot_gets_setup", () => {
   assert.ok(existsSync(pkgFile(dir)));
 });
 
+test("worktree_checkout_uses_existing_branch_with_setup", () => {
+  const { dir, git, run } = setup();
+  git("branch", "goal/TASK-3", "master");
+  const r = run(["worktree", "goal-TASK-3", "--checkout", "goal/TASK-3", "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const wt = wtPath(dir, "goal-TASK-3");
+  assert.equal(JSON.parse(r.stdout).branch, "goal/TASK-3");
+  assert.equal(git("-C", wt, "branch", "--show-current"), "goal/TASK-3", "attached to the existing branch");
+  assert.equal(git("branch", "--list", "goal-TASK-3"), "", "no new branch");
+  assert.ok(lstatSync(join(wt, "node_modules")).isSymbolicLink(), "same setup as the other modes");
+  assert.equal(git("-C", wt, "status", "--porcelain"), "");
+  assert.equal(run(["worktree", "goal-TASK-3", "--checkout", "goal/TASK-3"]).status, 2, "refused when it exists");
+  assert.equal(run(["worktree", "goal-TASK-3", "--checkout", "goal/TASK-3", "--reuse"]).status, 0);
+  // A branch held by another checkout (the main checkout's master) is refused before git runs; an unknown one fails.
+  const held = run(["worktree", "other", "--checkout", "master"]);
+  assert.equal(held.status, 2);
+  assert.match(held.stderr, /branch master is checked out at/);
+  assert.equal(run(["worktree", "other", "--checkout", "goal/TASK-9"]).status, 1, "unknown branch");
+  assert.equal(run(["worktree", "other", "--checkout", "goal/TASK-3", "--goal", "TASK-3"]).status, 1, "one mode only");
+  // After a fresh clone the branch may exist only on the remote: it is tracked.
+  git("update-ref", "refs/remotes/origin/goal/TASK-7", git("rev-parse", "master"));
+  assert.equal(run(["worktree", "goal-TASK-7", "--checkout", "goal/TASK-7"]).status, 0);
+  assert.equal(git("-C", wtPath(dir, "goal-TASK-7"), "branch", "--show-current"), "goal/TASK-7");
+  assert.equal(run(["worktree", "goal-TASK-3", "--remove"]).status, 0);
+  assert.ok(existsSync(pkgFile(dir)));
+});
+
+test("worktree_base_creates_named_branch_from_ref", () => {
+  const { dir, git, run } = setup();
+  git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "second");
+  const r = run(["worktree", "impl-fast", "--base", "master", "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const wt = wtPath(dir, "impl-fast");
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.branch, "impl-fast");
+  assert.equal(out.base, "master");
+  assert.equal(git("-C", wt, "branch", "--show-current"), "impl-fast");
+  assert.equal(git("rev-parse", "impl-fast"), git("rev-parse", "master"), "branch starts at the ref");
+  assert.equal(git("branch", "--list", "goal/*"), "", "no goal branch involved");
+  assert.ok(lstatSync(join(wt, "node_modules")).isSymbolicLink(), "same setup as the other modes");
+  assert.equal(run(["worktree", "impl-fast", "--base", "master"]).status, 2, "refused when it exists");
+  assert.equal(run(["worktree", "impl-fast", "--base", "master", "--reuse"]).status, 0);
+  assert.equal(run(["worktree", "impl-x", "--base", "nope"]).status, 1, "unknown ref");
+  assert.equal(run(["worktree", "impl-fast", "--remove"]).status, 0);
+  assert.ok(existsSync(pkgFile(dir)));
+});
+
 test("config_default_worktree_setup", () => {
   assert.deepEqual(DEFAULTS.worktreeSetup, { link: [], run: null });
   assert.deepEqual(normalizeSetup(DEFAULTS.worktreeSetup), { link: [], run: null });
