@@ -1,0 +1,143 @@
+{
+  "generatedAt": "2026-11-06T15:10:00.000Z",
+  "project": { "name": "Quaderno territoriale", "root": "E:/Projects/Agriturismo", "mainBranch": "master", "language": "it" },
+  "header": {
+    "activeGoal": { "id": "TASK-32", "title": "7C Stato di fatto e progetto", "done": 2, "total": 8 },
+    "main": { "sha": "1211ccf", "subject": "Integrate TASK-32.2: rilievo dello stato di fatto per edificio", "date": "2026-11-06T14:41:12.000Z" },
+    "review": { "integratedSinceLast": 9, "every": 15, "lastTag": "cr/CR-1" },
+    "context": { "percent": 48.2, "ts": "2026-11-06T15:07:40.000Z", "stale": false },
+    "usage": { "fiveHour": 62, "sevenDay": 31, "resetsAt": 1793988600, "ts": "2026-11-06T14:22:03.000Z", "stale": true },
+    "ownerWaiting": 2
+  },
+  "milestones": [
+    {
+      "id": "m-7", "title": "M7 Edifici", "description": "Sagome, piante e stato di fatto degli edifici del fondo.", "archived": false,
+      "goals": [
+        { "id": "TASK-30", "title": "7A Sagome degli edifici", "status": "Done", "labels": ["goal"], "proposed": false, "done": 5, "total": 5, "dependencies": [], "archived": true },
+        { "id": "TASK-31", "title": "7B Pianta per piano", "status": "Done", "labels": ["goal"], "proposed": false, "done": 6, "total": 6, "dependencies": ["TASK-30"], "archived": true },
+        { "id": "TASK-32", "title": "7C Stato di fatto e progetto", "status": "In Progress", "labels": ["goal"], "proposed": false, "done": 2, "total": 8, "dependencies": ["TASK-31"], "archived": false },
+        { "id": "TASK-33", "title": "7D Attività multifunzionali", "status": "To Do", "labels": ["goal", "proposed"], "proposed": true, "done": 0, "total": 0, "dependencies": ["TASK-32"], "archived": false }
+      ],
+      "drafts": [
+        { "id": "draft-14", "title": "Fotografie georiferite per ogni edificio" },
+        { "id": "draft-15", "title": "Esportazione delle piante in DXF" }
+      ]
+    },
+    {
+      "id": "m-8", "title": "M8 Confronto", "description": "Confronto tra scenari, rischi e vincoli.", "archived": false,
+      "goals": [
+        { "id": "TASK-34", "title": "8A Rischi e vincoli", "status": "Ready", "labels": ["goal"], "proposed": false, "done": 0, "total": 4, "dependencies": [], "archived": false },
+        { "id": "TASK-35", "title": "8B Confronto tra scenari", "status": "To Do", "labels": ["goal"], "proposed": false, "done": 0, "total": 0, "dependencies": ["TASK-32", "TASK-34"], "archived": false },
+        { "id": "TASK-36", "title": "8C Confronto tra tenute", "status": "To Do", "labels": ["goal", "proposed"], "proposed": true, "done": 0, "total": 0, "dependencies": ["TASK-35"], "archived": false }
+      ],
+      "drafts": [
+        { "id": "draft-16", "title": "Indicatore sintetico di rischio idrogeologico" }
+      ]
+    },
+    {
+      "id": "m-9", "title": "M9 Documenti", "description": "Relazioni e allegati in PDF.", "archived": false,
+      "goals": [
+        { "id": "TASK-37", "title": "9A Report PDF <per il comune>", "status": "To Do", "labels": ["goal"], "proposed": false, "done": 0, "total": 0, "dependencies": ["TASK-35"], "archived": false }
+      ],
+      "drafts": []
+    },
+    {
+      "id": "m-6", "title": "M6 Catasto", "description": "Particelle e intestatari.", "archived": true,
+      "goals": [
+        { "id": "TASK-24", "title": "6A Import delle particelle", "status": "Done", "labels": ["goal"], "proposed": false, "done": 4, "total": 4, "dependencies": [], "archived": true }
+      ],
+      "drafts": []
+    }
+  ],
+  "tasks": [
+    { "id": "TASK-32.1", "title": "Modello dati dello stato di fatto", "status": "Done", "goal": "TASK-32", "assignees": ["@impl-1"], "dependencies": [], "scope": ["src/model/**"], "acDone": 4, "acTotal": 4, "updatedAt": "2026-11-06T12:30:00.000Z", "archived": false },
+    { "id": "TASK-32.2", "title": "Rilievo dello stato di fatto per edificio", "status": "Integrated", "goal": "TASK-32", "assignees": ["@impl-2"], "dependencies": ["TASK-32.1"], "scope": ["src/survey/**"], "acDone": 5, "acTotal": 5, "updatedAt": "2026-11-06T14:41:12.000Z", "archived": false },
+    { "id": "TASK-32.3", "title": "Calcolo delle superfici per destinazione d'uso", "status": "In Review", "goal": "TASK-32", "assignees": ["@impl-1"], "dependencies": ["TASK-32.1"], "scope": ["src/areas/**"], "acDone": 3, "acTotal": 3, "updatedAt": "2026-11-06T15:02:00.000Z", "archived": false },
+    { "id": "TASK-32.4", "title": "Modello dello stato di progetto", "status": "In Progress", "goal": "TASK-32", "assignees": ["@impl-1"], "dependencies": ["TASK-32.1"], "scope": ["src/model/project/**"], "acDone": 1, "acTotal": 4, "updatedAt": "2026-11-06T14:48:00.000Z", "archived": false },
+    { "id": "TASK-32.5", "title": "Interfaccia di confronto stato di fatto / progetto", "status": "In Progress", "goal": "TASK-32", "assignees": ["@impl-2"], "dependencies": ["TASK-32.2"], "scope": ["src/ui/compare/**"], "acDone": 0, "acTotal": 5, "updatedAt": "2026-11-06T15:01:00.000Z", "archived": false },
+    { "id": "TASK-32.6", "title": "Legenda e simbologia delle destinazioni", "status": "To Do", "goal": "TASK-32", "assignees": [], "dependencies": [], "scope": [], "acDone": 0, "acTotal": 2, "updatedAt": "2026-11-06T10:15:00.000Z", "archived": false },
+    { "id": "TASK-32.7", "title": "Esportazione CSV delle superfici", "status": "Ready", "goal": "TASK-32", "assignees": [], "dependencies": ["TASK-32.4"], "scope": ["src/export/**"], "acDone": 0, "acTotal": 3, "updatedAt": "2026-11-06T10:15:00.000Z", "archived": false },
+    { "id": "TASK-32.8", "title": "Confronto per piano o per edificio", "status": "Blocked", "goal": "TASK-32", "assignees": ["@architect"], "dependencies": ["TASK-32.3"], "scope": ["src/compare/**"], "acDone": 0, "acTotal": 3, "updatedAt": "2026-11-06T15:05:00.000Z", "archived": false },
+    { "id": "TASK-34.1", "title": "Carta dei vincoli paesaggistici", "status": "Ready", "goal": "TASK-34", "assignees": [], "dependencies": [], "scope": ["src/constraints/**"], "acDone": 0, "acTotal": 4, "updatedAt": "2026-11-05T17:20:00.000Z", "archived": false },
+    { "id": "TASK-31.1", "title": "Pianta del piano terra", "status": "Done", "goal": "TASK-31", "assignees": ["@impl-1"], "dependencies": [], "scope": ["src/plan/**"], "acDone": 3, "acTotal": 3, "updatedAt": "2026-11-04T16:00:00.000Z", "archived": true },
+    { "id": "TASK-31.2", "title": "Piani superiori e sottotetti", "status": "Done", "goal": "TASK-31", "assignees": ["@impl-2"], "dependencies": ["TASK-31.1"], "scope": ["src/plan/**"], "acDone": 4, "acTotal": 4, "updatedAt": "2026-11-04T18:30:00.000Z", "archived": true }
+  ],
+  "agents": [
+    { "agentId": "a7f3c1", "type": "maestro:implementer", "actor": "impl-1", "task": "TASK-32.4", "state": "running", "since": "2026-11-06T14:48:02.000Z", "until": null },
+    { "agentId": "b29e04", "type": "maestro:implementer", "actor": "impl-2", "task": "TASK-32.5", "state": "running", "since": "2026-11-06T15:01:10.000Z", "until": null },
+    { "agentId": "c1d877", "type": "maestro:architect", "actor": "architect", "task": "TASK-32.3", "state": "running", "since": "2026-11-06T15:04:05.000Z", "until": null },
+    { "agentId": "9e41aa", "type": "maestro:implementer", "actor": "impl-2", "task": "TASK-32.2", "state": "stopped", "since": "2026-11-06T13:52:40.000Z", "until": "2026-11-06T14:31:05.000Z" },
+    { "agentId": "8b02f1", "type": "maestro:implementer", "actor": "impl-1", "task": "TASK-32.3", "state": "stopped", "since": "2026-11-06T13:40:00.000Z", "until": "2026-11-06T14:58:30.000Z" },
+    { "agentId": "77c3de", "type": "maestro:implementer", "actor": "impl-1", "task": "TASK-32.1", "state": "stopped", "since": "2026-11-06T11:02:11.000Z", "until": "2026-11-06T12:04:50.000Z" },
+    { "agentId": "6aa019", "type": "maestro:qa-explorer", "actor": "qa", "task": null, "state": "stopped", "since": "2026-11-05T16:10:00.000Z", "until": "2026-11-05T16:52:31.000Z" },
+    { "agentId": "5f7b20", "type": "maestro:code-reviewer", "actor": "reviewer", "task": null, "state": "stopped", "since": "2026-11-05T17:00:00.000Z", "until": "2026-11-05T17:24:12.000Z" }
+  ],
+  "decisions": [
+    { "id": "decision-12", "title": "Confronto per piano o per edificio?", "status": "open", "date": "2026-11-06T15:05:00.000Z" },
+    { "id": "decision-11", "title": "Superfici calcolate al lordo dei muri", "status": "accepted", "date": "2026-11-05T11:20:00.000Z" },
+    { "id": "decision-10", "title": "Un solo modello per stato di fatto e progetto", "status": "accepted", "date": "2026-11-04T09:45:00.000Z" },
+    { "id": "decision-9", "title": "Piante in SVG invece che in canvas", "status": "superseded", "date": "2026-11-02T14:00:00.000Z" }
+  ],
+  "reports": [
+    { "kind": "task", "id": "TASK-32.2", "path": ".maestro/reports/task/TASK-32.2.md", "title": "TASK-32.2 Rilievo dello stato di fatto per edificio", "mtime": "2026-11-06T14:31:00.000Z" },
+    { "kind": "task", "id": "TASK-32.1", "path": ".maestro/reports/task/TASK-32.1.md", "title": "TASK-32.1 Modello dati dello stato di fatto", "mtime": "2026-11-06T12:04:00.000Z" },
+    { "kind": "qa", "id": "QA-3", "path": ".maestro/reports/qa/QA-3.md", "title": "QA-3 GOAL 7B Pianta per piano", "mtime": "2026-11-05T16:52:00.000Z" },
+    { "kind": "review", "id": "CR-1", "path": ".maestro/reports/review/CR-1.md", "title": "CR-1 Code review after 15 integrated tasks", "mtime": "2026-11-05T17:24:00.000Z" }
+  ],
+  "costs": {
+    "estimate": true,
+    "pricesSource": "https://www.anthropic.com/pricing (2026-11-06)",
+    "tasks": [
+      { "task": "TASK-32.1", "goal": "TASK-32", "title": "Modello dati dello stato di fatto", "wallMs": 3759000, "reworkCycles": 0, "ownerInterventions": 0,
+        "models": {
+          "claude-opus-5-5": { "input": 412, "output": 41280, "cacheRead": 1820440, "cacheWrite": 96210 },
+          "claude-sonnet-5-5": { "input": 34, "output": 33352, "cacheRead": 892551, "cacheWrite": 75324 }
+        },
+        "usd": 3.60 },
+      { "task": "TASK-32.2", "goal": "TASK-32", "title": "Rilievo dello stato di fatto per edificio", "wallMs": 2305000, "reworkCycles": 1, "ownerInterventions": 1,
+        "models": {
+          "claude-sonnet-5-5": { "input": 88, "output": 58810, "cacheRead": 2410992, "cacheWrite": 120338 },
+          "claude-haiku-6-0-preview": { "input": 1200, "output": 4410, "cacheRead": 210004, "cacheWrite": 18220 }
+        },
+        "usd": null },
+      { "task": "TASK-31.2", "goal": "TASK-31", "title": "Piani superiori e sottotetti", "wallMs": 220425, "reworkCycles": 0, "ownerInterventions": 0,
+        "models": {
+          "claude-sonnet-5-5": { "input": 21, "output": 12034, "cacheRead": 401220, "cacheWrite": 30118 }
+        },
+        "usd": 0.41 }
+    ],
+    "goals": [
+      { "goal": "TASK-32", "title": "7C Stato di fatto e progetto", "tasks": 2, "wallMs": 6064000, "usd": null,
+        "models": {
+          "claude-opus-5-5": { "input": 412, "output": 41280, "cacheRead": 1820440, "cacheWrite": 96210 },
+          "claude-sonnet-5-5": { "input": 122, "output": 92162, "cacheRead": 3303543, "cacheWrite": 195662 },
+          "claude-haiku-6-0-preview": { "input": 1200, "output": 4410, "cacheRead": 210004, "cacheWrite": 18220 }
+        } },
+      { "goal": "TASK-31", "title": "7B Pianta per piano", "tasks": 1, "wallMs": 220425, "usd": 0.41,
+        "models": {
+          "claude-sonnet-5-5": { "input": 21, "output": 12034, "cacheRead": 401220, "cacheWrite": 30118 }
+        } }
+    ],
+    "unpriced": ["claude-haiku-6-0-preview"]
+  },
+  "events": [
+    { "ts": "2026-11-06T15:07:40.000Z", "type": "context.band", "actor": "hook", "data": { "percent": 48.2, "band": 45 } },
+    { "ts": "2026-11-06T15:05:00.000Z", "type": "decision.recorded", "actor": "pm", "task": "TASK-32.8", "data": { "id": "decision-12", "status": "open" } },
+    { "ts": "2026-11-06T15:04:50.000Z", "type": "task.status", "actor": "architect", "goal": "TASK-32", "task": "TASK-32.8", "data": { "from": "Ready", "to": "Blocked" } },
+    { "ts": "2026-11-06T15:04:05.000Z", "type": "agent.start", "agentId": "c1d877", "data": { "agentType": "maestro:architect" } },
+    { "ts": "2026-11-06T15:02:00.000Z", "type": "task.status", "actor": "impl-1", "goal": "TASK-32", "task": "TASK-32.3", "data": { "from": "In Progress", "to": "In Review" } },
+    { "ts": "2026-11-06T15:01:40.000Z", "type": "task.claim", "actor": "impl-2", "goal": "TASK-32", "task": "TASK-32.5", "data": {} },
+    { "ts": "2026-11-06T15:01:10.000Z", "type": "agent.start", "agentId": "b29e04", "data": { "agentType": "maestro:implementer" } },
+    { "ts": "2026-11-06T14:58:30.000Z", "type": "agent.stop", "agentId": "8b02f1", "data": { "agentType": "maestro:implementer" } },
+    { "ts": "2026-11-06T14:48:30.000Z", "type": "task.claim", "actor": "impl-1", "goal": "TASK-32", "task": "TASK-32.4", "data": {} },
+    { "ts": "2026-11-06T14:48:02.000Z", "type": "agent.start", "agentId": "a7f3c1", "data": { "agentType": "maestro:implementer" } },
+    { "ts": "2026-11-06T14:42:00.000Z", "type": "task.measure", "actor": "architect", "goal": "TASK-32", "task": "TASK-32.2", "data": { "wallMs": 2305000, "reworkCycles": 1, "ownerInterventions": 1 } },
+    { "ts": "2026-11-06T14:41:12.000Z", "type": "task.status", "actor": "architect", "goal": "TASK-32", "task": "TASK-32.2", "data": { "from": "In Review", "to": "Integrated" } },
+    { "ts": "2026-11-06T14:33:00.000Z", "type": "task.claim_denied", "actor": "impl-2", "goal": "TASK-32", "task": "TASK-32.4", "data": { "reason": "claimed by impl-1" } },
+    { "ts": "2026-11-06T14:31:05.000Z", "type": "agent.stop", "agentId": "9e41aa", "data": { "agentType": "maestro:implementer" } },
+    { "ts": "2026-11-06T14:22:03.000Z", "type": "usage.sample", "actor": "pm", "data": { "fiveHour": 62, "sevenDay": 31, "resetsAt": 1793988600 } },
+    { "ts": "2026-11-06T13:10:00.000Z", "type": "decision.ruling", "actor": "impl-2", "task": "TASK-32.2", "data": { "question": "Arrotondare le superfici?", "ruling": "Due decimali, come in 7B" } },
+    { "ts": "2026-11-06T12:30:00.000Z", "type": "task.status", "actor": "pm", "goal": "TASK-32", "task": "TASK-32.1", "data": { "from": "Integrated", "to": "Done" } },
+    { "ts": "2026-11-06T10:15:00.000Z", "type": "goal.start", "actor": "pm", "goal": "TASK-32", "data": {} }
+  ]
+}

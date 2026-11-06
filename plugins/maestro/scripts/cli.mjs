@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // `maestro` command dispatcher (contract: docs/plugin-contracts.md section 6).
 // Exit codes: 0 success, 1 error, 2 refused operation (claim denied, failed check).
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { gitCommonDir, loadConfig } from "./lib/config.mjs";
 import { appendEvent, readEvents } from "./lib/events.mjs";
 import { backlogVersion, editTask, listTasks, runTool, viewTask } from "./lib/backlog.mjs";
+import { DEFAULT_PORT, runtimeFile, startServer } from "./dashboard/server.mjs";
 import { branchExists, git, refExists, worktreeBranch, worktreePath } from "./lib/git.mjs";
 
 class CliError extends Error {
@@ -18,7 +19,7 @@ class CliError extends Error {
   }
 }
 
-const BOOLEAN_FLAGS = new Set(["json", "probe", "reuse"]);
+const BOOLEAN_FLAGS = new Set(["json", "probe", "reuse", "no-open", "stop", "foreground"]);
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function parseArgs(argv) {
@@ -107,6 +108,47 @@ function probeUsage(root) {
     sevenDay: pct(windows.seven_day),
     resetsAt: five?.resetsAt ?? five?.resets_at ?? null,
   };
+}
+
+function readRecordedDashboard(file) {
+  try {
+    const r = JSON.parse(readFileSync(file, "utf8"));
+    return Number.isInteger(r.pid) && Number.isInteger(r.port) && typeof r.url === "string" ? r : null;
+  } catch {
+    return null;
+  }
+}
+
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+
+// The recorded server must answer on its port and belong to this project (guards against pid reuse).
+async function dashboardAnswers(info, root) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${info.port}/api/health`, { signal: AbortSignal.timeout(1500) });
+    const body = await res.json();
+    return body.ok === true && resolve(body.root) === resolve(root);
+  } catch {
+    return false;
+  }
+}
+
+function openBrowser(url) {
+  const [cmd, args] =
+    process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
+  try {
+    const child = spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true });
+    child.on("error", () => {});
+    child.unref();
+  } catch {
+    // The URL is printed anyway.
+  }
 }
 
 const COMMANDS = {
@@ -295,6 +337,60 @@ const COMMANDS = {
     };
     const event = appendEvent(root, "task.measure", { actor: flags.actor, goal: flags.goal, task: id, data });
     out(flags, event, `measured ${id}: ${Object.keys(models).length} model(s), ${wallMs} ms`);
+    return 0;
+  },
+
+  async dashboard(args, flags) {
+    const { root } = context();
+    const file = runtimeFile(root);
+    const recorded = readRecordedDashboard(file);
+    if (flags.stop) {
+      if (!recorded) {
+        out(flags, { stopped: false }, "no dashboard recorded");
+        return 0;
+      }
+      let killed = false;
+      if (pidAlive(recorded.pid)) {
+        try {
+          process.kill(recorded.pid);
+          killed = true;
+        } catch {
+          // already gone
+        }
+      }
+      rmSync(file, { force: true });
+      out(flags, { stopped: killed, pid: recorded.pid }, killed ? `dashboard stopped (pid ${recorded.pid})` : "dashboard was not running (stale record removed)");
+      return 0;
+    }
+    const port = flags.port === undefined ? DEFAULT_PORT : Number(flags.port);
+    if (!Number.isInteger(port) || port < 0 || port > 65535) throw new CliError(`invalid --port: ${flags.port}`);
+    if (flags.foreground) {
+      const srv = await startServer({ root, port });
+      out(flags, { url: srv.url, port: srv.port, pid: process.pid, foreground: true }, `dashboard at ${srv.url} (foreground, Ctrl+C to stop)`);
+      if (!flags["no-open"]) openBrowser(srv.url);
+      return await new Promise(() => {}); // runs until the process is killed
+    }
+    let info = recorded && pidAlive(recorded.pid) && (await dashboardAnswers(recorded, root)) ? recorded : null;
+    let reused = !!info;
+    if (!info) {
+      rmSync(file, { force: true });
+      const serverPath = fileURLToPath(new URL("./dashboard/server.mjs", import.meta.url));
+      const child = spawn(process.execPath, [serverPath, "--root", root, "--port", String(port)], { detached: true, stdio: "ignore", windowsHide: true });
+      child.on("error", () => {});
+      child.unref();
+      const deadline = Date.now() + 8000;
+      while (Date.now() < deadline) {
+        const r = readRecordedDashboard(file);
+        if (r && r.pid === child.pid) {
+          info = r;
+          break;
+        }
+        await new Promise((res) => setTimeout(res, 100));
+      }
+      if (!info) throw new CliError("dashboard server did not start (try `maestro dashboard --foreground` to see the error)");
+    }
+    if (!flags["no-open"]) openBrowser(info.url);
+    out(flags, { url: info.url, port: info.port, pid: info.pid, reused }, `dashboard at ${info.url}${reused ? " (already running)" : ""}`);
     return 0;
   },
 
