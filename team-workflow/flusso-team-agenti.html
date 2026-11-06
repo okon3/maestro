@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Maestro — team di agenti (bozza v2)</title>
+<title>Maestro — team di agenti (specifica v3)</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
   :root { --paper:#f7f4ec; --ink:#23261f; --muted:#5f6357; --line:#d8d2c2; --card:#fffdf7;
@@ -51,13 +51,13 @@
 <body>
 <header>
   <h1>Maestro — team di agenti per lo sviluppo</h1>
-  <p>Bozza v2 · 6 novembre 2026 · dopo le verifiche su Claude Code, Paseo e i tracker (<code>E:\Projects\Maestro\research\</code>) e le decisioni D1–D4. Progetto pilota: Quaderno territoriale.</p>
+  <p>Specifica v3 · 6 novembre 2026 · <b>fonte di verità</b> del framework: ogni modifica al disegno si fa qui, nello stesso commit. Verifiche in <code>research/</code>; decisioni registrate in <code>backlog/decisions/</code>; piano in <code>PLAN.md</code>. Progetto pilota: Quaderno territoriale (Agriturismo).</p>
 </header>
 <nav>
   <a href="#decisioni">0. Decisioni prese</a><a href="#ruoli">1. Ruoli</a><a href="#confezione">2. Plugin e repository</a><a href="#flusso">3. Flusso</a>
   <a href="#pianificazione">4. Pianificazione a ondate</a><a href="#stati">5. Ciclo del task</a><a href="#file">6. Dove vive cosa</a><a href="#scrittori">7. Chi scrive cosa</a>
   <a href="#decisioni-agenti">8. Dubbi e decisioni</a><a href="#qualita">9. Qualità</a><a href="#coerenza">10. Coerenza delle verifiche</a>
-  <a href="#contesto">11. Contesto e consumo</a><a href="#pausa">12. Pausa e altri PC</a><a href="#dashboard">13. Dashboard</a><a href="#aperte">14. Aperte</a><a href="#rollout">15. Messa in opera</a>
+  <a href="#contesto">11. Contesto e consumo</a><a href="#pausa">12. Pausa e altri PC</a><a href="#dashboard">13. Dashboard</a><a href="#misura">14. Misura</a><a href="#rollout">15. Messa in opera</a>
 </nav>
 <main>
 
@@ -65,9 +65,9 @@
 <h2>0. Decisioni prese (6 novembre 2026)</h2>
 <table>
 <tr><th>Tema</th><th>Decisione</th></tr>
-<tr><td>Confezione</td><td>Maestro diventa un <b>plugin di Claude Code</b> e prende il posto delle regole v1–v4. Ogni progetto installa il plugin e lancia la propria dashboard.</td></tr>
+<tr><td>Confezione</td><td>Maestro è un <b>plugin di Claude Code personale e autonomo</b>, pubblicato con il proprio marketplace su GitHub (<code>okon3/maestro</code>), e prende il posto delle regole v1–v4. Ogni progetto lo installa dal marketplace GitHub e lancia la propria dashboard. Non unifica <code>orchestrate</code> né <code>codegenesis</code>: sono solo fonti di idee. La mappa wayfinder di settembre è superata (<code>archive/wayfinder/</code>).</td></tr>
 <tr><td>Esecuzione (D1)</td><td><b>Subagent di Claude Code</b>, che possono annidarsi fino a 3 livelli. Nessuna dipendenza da Paseo: se Paseo c'è, il plugin lo usa solo come fonte in più (per esempio per il consumo).</td></tr>
-<tr><td>Tracker (D2)</td><td><b>Backlog.md</b> come candidato principale. <b>beads</b> va provato sul campo con gli stessi casi critici prima di scegliere.</td></tr>
+<tr><td>Tracker (D2)</td><td><b>Backlog.md</b>, scelto dopo la prova sul campo contro beads (<code>research/tracker-bakeoff.md</code>); beads resta solo come ripiego. È un <b>prerequisito globale</b> alla versione 1.55.3: il plugin ne controlla presenza e versione all'avvio e, se manca, indica il comando di installazione.</td></tr>
 <tr><td>Organizzazione (D3)</td><td>L'<b>architetto fa da capo del GOAL</b>: avvia gli implementatori e integra. Il PM avvia QA e revisore. <b>Si parte con un GOAL alla volta</b>; il parallelismo è tra i due implementatori dello stesso GOAL.</td></tr>
 <tr><td>Coerenza (D4)</td><td>Durante il collaudo si congelano solo le aree critiche (persistenza, migrazioni, formato dei file); altrove si lavora su fotografie fisse con verifica di validità.</td></tr>
 <tr><td>Coda dei GOAL (Q1)</td><td>Si definisce con il PM; le idee nuove si collocano insieme nel piano in corso.</td></tr>
@@ -76,6 +76,12 @@
 <tr><td>Modelli (Q5)</td><td>Sonnet di base, Opus per i task difficili, <b>mai Fable</b>. L'architetto sceglie modello ed <b>effort</b> per task: entrambi si impostano nella definizione dell'agente o al lancio.</td></tr>
 <tr><td>Limiti (Q8)</td><td>Nessun tetto per i singoli agenti, ma protezione dai loop con un numero massimo di turni. Il PM sorveglia il proprio contesto e il consumo delle 5 ore e settimanale.</td></tr>
 <tr><td>Code review (Q9)</td><td>Ogni 15 task integrati oppure a fine GOAL, quello che arriva prima.</td></tr>
+<tr><td>Permessi (A2)</td><td>Gli agenti lavorano in modalità <code>auto</code>; se può comparire una richiesta di permesso, arriva all'owner. Nessun agente cambia modalità di permesso.</td></tr>
+<tr><td>Test (A3)</td><td>Autore dei test separato <b>rinviato</b>. Intanto l'implementatore scrive i test, ma l'architetto specifica i casi di accettazione (dato / quando / allora) che corrispondono 1:1 a test con nome, e rivede i test per primi.</td></tr>
+<tr><td>Lingua (A4)</td><td>File, comandi e codice del framework in inglese; dialogo con l'owner nella lingua del progetto.</td></tr>
+<tr><td>Decisioni</td><td>Nessuno sceglie a caso (sezione 8). Da v4: al massimo 2 tentativi di recupero per problema e 2 cicli di critica per risultato, contati tra agenti e sessioni.</td></tr>
+<tr><td>Misura</td><td><b>Opzione B:</b> il plugin registra per ogni task costi e tempi; il pilota 7C si confronta con la 7B. Un harness di valutazione completo è un GOAL successivo (sezione 14).</td></tr>
+<tr><td>Specifica</td><td>Questo documento HTML è la fonte di verità del disegno.</td></tr>
 </table>
 </section>
 
@@ -92,13 +98,14 @@
   <div class="card"><h4><span class="role arch">Architetto</span> · capo del GOAL · Opus</h4><ul>
     <li>Possiede l'architettura: ADR, contratti, standard.</li>
     <li>Scompone il GOAL <b>a ondate</b> e sceglie per ogni task corsia, modello, effort e livello di QA.</li>
-    <li>Avvia e coordina i 2 implementatori sul ramo del GOAL e rivede i loro diff.</li>
+    <li>Scrive i criteri come casi di accettazione (dato / quando / allora) e rivede per primi i test che li coprono.</li>
+    <li>Avvia e coordina i 2 implementatori sul ramo del GOAL e rivede i loro diff. <b>Resta attivo finché gli implementatori non tornano</b>: altrimenti i loro risultati arrivano al PM.</li>
     <li>Risolve i conflitti e integra il GOAL in <code>master</code>.</li>
     <li>Le decisioni rilevanti non le prende: le porta al PM con opzioni e raccomandazione.</li></ul></div>
   <div class="card"><h4><span class="role impl">Implementatore ×2</span> · Sonnet (Opus se indicato)</h4><ul>
     <li>Prima di partire controlla che ciò che la specifica cita esista ancora così; poi lavora nella propria worktree, dentro l'ambito del task.</li>
     <li>Collabora con l'altro implementatore sullo stesso GOAL, ciascuno su componenti diversi.</li>
-    <li>Fa passare i test di accettazione senza modificarli; se la specifica non regge si ferma e lo scrive.</li></ul></div>
+    <li>Scrive un test con nome per ogni caso di accettazione e lo fa passare; se la specifica non regge si ferma e lo scrive.</li></ul></div>
   <div class="card"><h4><span class="role qa">QA esplorativo</span> · Sonnet</h4>Riceve i requisiti scritti dal PM e una build fotografata, mai il codice. Lavora per missioni brevi e mirate, ognuna su un'area e con euristiche da utente maldestro. Produce un rapporto riproducibile.</div>
   <div class="card"><h4><span class="role rev">Revisore del codice</span> · Opus · periodico</h4>Agente nuovo a ogni giro, avviato dal PM. Legge l'intervallo di commit tra due tag con lo skill <code>code-review</code> e verifica ADR, confini dei moduli, SOLID, YAGNI, KISS e qualità dei test. I rilievi diventano task di refactoring.</div>
 </div>
@@ -109,9 +116,11 @@
 <h2>2. Plugin e repository</h2>
 <table>
 <tr><th>Dove</th><th>Cosa</th></tr>
-<tr><td><code>E:\Projects\Maestro</code> (sorgente del plugin e vetrina locale)</td><td><code>.claude-plugin/plugin.json</code>; <code>agents/</code> (architect, implementer, qa-explorer, code-reviewer, test-author); <code>skills/</code> (pm, avvia-goal, pausa, riprendi, smista-qa, code-review-periodica, decisione); <code>hooks/</code> (registro eventi, soglie di contesto e consumo, ricarica dello stato dopo la compattazione); <code>bin/</code> (comandi <code>maestro</code>: claim, lock, status); <code>dashboard/</code> (server Node senza dipendenze più la pagina); modelli di <code>AGENTS.md</code> e di <code>PLAN.md</code>.</td></tr>
-<tr><td>Progetto (es. Agriturismo)</td><td>Abilita il plugin nelle impostazioni del progetto (<code>.claude/settings.json</code>). Contiene i propri dati: tracker, decisioni, rapporti, nota di passaggio. Lancia la dashboard con <code>/maestro:dashboard</code>, che apre <code>localhost</code> sui dati del progetto.</td></tr>
+<tr><td><code>okon3/maestro</code> su GitHub (sorgente del plugin e marketplace)</td><td><code>.claude-plugin/marketplace.json</code> e il plugin con <code>.claude-plugin/plugin.json</code>; <code>agents/</code> (architect, implementer, qa-explorer, code-reviewer); <code>skills/</code> (pm, start-goal, pause, resume, triage-qa, periodic-review, decision); <code>hooks/</code> (registro eventi, soglie di contesto e consumo, ricarica dello stato dopo la compattazione, controllo di Backlog.md); <code>bin/</code> (comandi <code>maestro</code>: claim, lock, worktree, status); <code>dashboard/</code> (server Node senza dipendenze più la pagina); modelli di <code>AGENTS.md</code> e di <code>PLAN.md</code>.</td></tr>
+<tr><td>Progetto (es. Agriturismo)</td><td>Registra il marketplace GitHub e abilita il plugin nelle impostazioni del progetto (<code>.claude/settings.json</code>: <code>extraKnownMarketplaces</code> e <code>enabledPlugins</code>), così funziona su ogni PC dopo il clone. Contiene i propri dati: tracker, decisioni, rapporti, nota di passaggio. Lancia la dashboard con <code>/maestro:dashboard</code>, che apre <code>localhost</code> sui dati del progetto.</td></tr>
+<tr><td>Prerequisiti sul PC</td><td>Claude Code, Git, Node e Backlog.md 1.55.3 installato globalmente.</td></tr>
 </table>
+<p class="r">Pubblicare una versione significa fare push su <code>okon3/maestro</code>: lo autorizza l'owner. Durante lo sviluppo il plugin si prova in locale (<code>--plugin-dir</code>) senza pubblicarlo.</p>
 <p class="r">Il codice del framework si aggiorna in un solo posto. I progetti contengono solo dati e regole specifiche, cioè il proprio <code>AGENTS.md</code>.</p>
 </section>
 
@@ -124,7 +133,6 @@ flowchart TB
   A -->|ondata di task con ambiti| BL[(Tracker<br/>Backlog.md)]
   A -->|avvia| I1[Implementatore 1<br/>worktree 1]
   A -->|avvia| I2[Implementatore 2<br/>worktree 2]
-  A -.->|corsia piena: test di accettazione prima| TA[Autore dei test]
   I1 -->|ramo + rapporto| A
   I2 -->|ramo + rapporto| A
   A -->|rivede, integra nel ramo goal/G-x,<br/>ondata successiva| A
@@ -157,19 +165,20 @@ flowchart TB
 <div class="mermaid">
 stateDiagram-v2
   direction LR
-  [*] --> todo: architetto (ondata)
-  todo --> ready: specifica e test pronti
-  todo --> blocked: decisione necessaria
-  ready --> in_progress: claim dell'implementatore
-  in_progress --> review: ramo + rapporto
-  in_progress --> blocked: specifica superata o dubbio
-  review --> integrated: architetto integra nel ramo del GOAL
-  review --> ready: correzioni (max 2 cicli)
-  integrated --> verified: GOAL in master, QA e review superati
-  integrated --> ready: difetto collegato
-  blocked --> todo: decisione presa
-  verified --> archived: PM archivia a GOAL chiuso
+  [*] --> ToDo: architetto (ondata)
+  ToDo --> Ready: specifica e casi di accettazione pronti
+  ToDo --> Blocked: decisione necessaria
+  Ready --> InProgress: claim dell'implementatore
+  InProgress --> InReview: ramo + rapporto
+  InProgress --> Blocked: specifica superata o dubbio
+  InReview --> Integrated: architetto integra nel ramo del GOAL
+  InReview --> Ready: correzioni (max 2 cicli)
+  Integrated --> Done: GOAL in master, QA e review superati
+  Integrated --> Ready: difetto collegato
+  Blocked --> ToDo: decisione presa
+  Done --> archived: PM archivia a GOAL chiuso
 </div>
+<p class="r">Stati configurati in Backlog.md: <code>To Do, Ready, In Progress, Blocked, In Review, Integrated, Done</code>. I GOAL sono task con etichetta <code>goal</code> dentro una milestone; un GOAL non ancora approvato porta anche l'etichetta <code>proposed</code>.</p>
 </section>
 
 <section id="file">
@@ -181,7 +190,7 @@ stateDiagram-v2
 <tr><td><code>docs/adr/</code></td><td>Decisioni architetturali.</td><td>sì</td></tr>
 <tr><td><code>.maestro/reports/</code></td><td>Rapporti di implementazione, revisione, QA e code review, con il tag di riferimento.</td><td>sì</td></tr>
 <tr><td><code>.maestro/handoff.md</code></td><td>Punto della situazione del PM: cosa è in corso, cosa aspetta l'owner, prossima azione. Lo riscrive solo il PM, alla pausa e al cambio turno.</td><td>sì</td></tr>
-<tr><td><code>.maestro/events.jsonl</code></td><td>Registro degli eventi a sola aggiunta, con unione automatica nei merge (<code>merge=union</code>).</td><td>sì, alla pausa</td></tr>
+<tr><td><code>.maestro/events.jsonl</code></td><td>Registro degli eventi a sola aggiunta, con unione automatica nei merge (<code>merge=union</code>). Contiene anche i record di misura per task (sezione 14).</td><td>sì, alla pausa</td></tr>
 <tr><td><code>.maestro/runtime/</code></td><td>Blocchi, presa in carico dei task, battiti, cache di consumo e contesto.</td><td>no</td></tr>
 <tr><td><code>.claude/worktrees/</code></td><td>Worktree degli implementatori.</td><td>no</td></tr>
 </table>
@@ -234,7 +243,7 @@ sequenceDiagram
 <section id="qualita">
 <h2>9. Qualità: QA, code review e test</h2>
 <ul>
-  <li><b>Contro il bias dei test scritti da chi implementa</b> (solo corsia piena): l'architetto scrive i criteri come casi concreti (dato / quando / allora). Un <b>autore dei test</b>, agente nuovo che conosce solo la specifica e le interfacce pubbliche, li scrive prima. L'implementatore li fa passare senza modificarli; se secondo lui sono sbagliati, lo segnala all'architetto. La code review controlla anche la qualità dei test.</li>
+  <li><b>Contro il bias dei test scritti da chi implementa:</b> l'architetto scrive i criteri come casi concreti (dato / quando / allora), ognuno legato a un test con nome. L'implementatore scrive i test e il codice; l'architetto rivede <b>prima i test</b>, poi il codice. La code review controlla anche la qualità dei test e il QA resta la rete finale indipendente. Un <b>autore dei test</b> separato è rinviato: si valuta dopo il pilota, guardando i costi.</li>
   <li><b>QA:</b> livelli <code>none</code>, <code>self-smoke</code> (l'implementatore apre la pagina), <code>checkpoint</code> (a fine GOAL o prima di un deploy) e <code>dedicated</code> (aree critiche). Missioni brevi e mirate: il pilota sulla 7B ha mostrato che una missione unica e ampia copre poco.</li>
   <li><b>Code review periodica:</b> ogni 15 task o a fine GOAL. Rilievi in tre gradi: <i>violazione</i> (task prioritario), <i>debito</i> (in coda), <i>suggerimento</i> (annotato). Non blocca il lavoro in corso.</li>
 </ul>
@@ -253,7 +262,8 @@ sequenceDiagram
 <h2>11. Contesto del PM e consumo</h2>
 <h3>Contesto: compattazione gestita da noi, nella stessa sessione</h3>
 <ul>
-  <li><b>Lettura:</b> un hook calcola il contesto usato dal registro della conversazione. Funziona in qualsiasi interfaccia, anche se la barra di stato non c'è.</li>
+  <li><b>Lettura (verificata):</b> un hook calcola il contesto usato dal registro della conversazione (ultimo messaggio dell'assistente: input + cache letta + cache scritta), in circa 70 ms anche su 22 MB. Funziona in qualsiasi interfaccia, anche senza barra di stato. La dimensione della finestra non è nel registro: è un'impostazione esplicita del plugin (1M per Opus su questo account).</li>
+  <li><b>Avvisi:</b> l'hook inserisce nel contesto del PM un avviso con l'azione da fare, una volta per fascia, non a ogni chiamata.</li>
   <li><b>Soglie:</b> al 50% il PM non avvia nuovi GOAL; al 65% aggiorna <code>handoff.md</code> e i file di stato. La compattazione automatica è anticipata con <code>CLAUDE_AUTOCOMPACT_PCT_OVERRIDE</code>.</li>
   <li><b>Compattazione guidata:</b> un hook prima della compattazione detta cosa tenere (solo i riferimenti allo stato). Un hook all'avvio successivo ricarica dal tracker e da <code>handoff.md</code> un riepilogo fresco.</li>
   <li><b>Limite verificato:</b> né un hook né il modello possono avviare <code>/clear</code> o <code>/compact</code>. Si può solo anticipare la compattazione automatica e guidarla.</li>
@@ -261,10 +271,10 @@ sequenceDiagram
 </ul>
 <h3>Consumo delle 5 ore e settimanale: modulo con più fonti</h3>
 <ol>
-  <li>uno strumento di consumo dell'ambiente, se esiste (per esempio quello dell'app desktop);</li>
-  <li>la barra di stato di Claude Code, che riceve <code>rate_limits.five_hour</code> e <code>seven_day</code> con piani Pro e Max: uno script la scrive in <code>.maestro/runtime/usage.json</code>;</li>
+  <li><b>sonda</b> (verificata, fonte principale): una chiamata minima <code>claude -p --output-format stream-json --verbose</code> restituisce un <code>rate_limit_event</code> con l'utilizzo delle 5 ore e della settimana. È un'uscita ufficiale ma non documentata, quindi può cambiare: si lancia di rado (ai confini delle ondate) con il modello più economico;</li>
+  <li>la barra di stato di Claude Code (<code>rate_limits.five_hour</code> e <code>seven_day</code>), solo nelle sessioni interattive: uno script la scrive in <code>.maestro/runtime/usage.json</code>;</li>
   <li><code>paseo usage</code>, se c'è Paseo;</li>
-  <li>una stima dai registri locali, come fa ccusage.</li>
+  <li>l'hook <code>StopFailure</code> registra quando un turno si ferma per limite raggiunto.</li>
 </ol>
 <p>Oltre l'85% non partono task lunghi; oltre il 95% il PM mette in pausa in modo pulito. L'hook sull'errore di limite raggiunto registra l'evento; la sessione interattiva riprende da sola dopo l'azzeramento.</p>
 </section>
@@ -310,21 +320,25 @@ sequenceDiagram
 </div>
 </section>
 
-<section id="aperte">
-<h2>14. Punti aperti</h2>
-<div class="q"><b>A1 — Prova sul campo dei tracker.</b> Backlog.md e beads con gli stessi casi: due worktree che creano e prendono task insieme, ripresa dopo un clone su un'altra cartella, Windows, lettura dalla dashboard, hook sui cambi di stato. Esito in <code>research/task-trackers.md</code>, poi decisione dell'owner.</div>
-<div class="q"><b>A2 — Prototipi da verificare.</b> Calcolo del contesto dal registro della conversazione dentro Paseo; hook prima della compattazione e ricarica dopo; notifiche dei sotto-agenti al livello 2 (architetto → implementatori); permessi richiesti dagli agenti annidati (a chi arrivano?).</div>
-<div class="q"><b>A3 — Autore dei test separato.</b> Lo usiamo dal pilota nella corsia piena, o lo aggiungiamo dopo aver visto i costi?</div>
-<div class="q"><b>A4 — Nome dei comandi e lingua.</b> Comandi e file del framework in inglese (riusabili) e interazione con l'owner nella lingua del progetto?</div>
+<section id="misura">
+<h2>14. Misura dei risultati (opzione B)</h2>
+<ul>
+  <li><b>Record per task</b>, scritto nel registro eventi: token per modello (con cache letta e scritta), tempo dall'avvio all'integrazione, interventi dell'owner, cicli di correzione e difetti trovati dopo l'integrazione. Le fonti ci sono già: registri dei subagent e uso per modello delle esecuzioni.</li>
+  <li><b>Confronto del pilota:</b> la 7C fatta con Maestro contro la 7B fatta con le regole vecchie, sugli stessi indicatori.</li>
+  <li><b>Più avanti:</b> un harness di valutazione ripetibile (GOAL M-5, proposto), che parte dalle ricerche in <code>archive/wayfinder/research/</code>.</li>
+</ul>
+<div class="ok"><b>Punti aperti A1–A4 della v2: tutti chiusi.</b> A1 Backlog.md scelto; A2 prototipi riusciti (<code>research/hooks-prototypes.md</code>); A3 autore dei test rinviato; A4 framework in inglese, dialogo nella lingua del progetto.</div>
 </section>
 
 <section id="rollout">
 <h2>15. Messa in opera</h2>
 <ol>
-  <li><b>GOAL M-1 (Maestro), prove:</b> prova sul campo dei tracker (A1) e prototipi degli hook (A2), in un repository di prova.</li>
-  <li><b>GOAL M-2, plugin minimo:</b> agenti, skill del PM, pausa e ripresa, hook di eventi, contesto e consumo; installazione nel progetto Agriturismo; migrazione di <code>PLAN.md</code> (storico archiviato, GOAL futuri nel tracker).</li>
-  <li><b>GOAL M-3, dashboard</b> con roadmap, bacheca, agenti, decisioni e rapporti.</li>
-  <li><b>Pilota sul GOAL 7C</b> con un architetto e due implementatori, poi un bilancio di tempi, difetti e attriti.</li>
+  <li><b>GOAL M-1, prove</b> ✓: prova sul campo dei tracker (A1) e prototipi degli hook (A2), in un repository di prova.</li>
+  <li><b>GOAL M-0, impianto</b> del progetto Maestro: regole, piano, tracker, decisioni e questa specifica v3.</li>
+  <li><b>GOAL M-2, plugin minimo:</b> agenti, skill del PM, pausa e ripresa, hook di eventi, contesto e consumo, record di misura; pubblicazione sul marketplace GitHub; installazione nel progetto Agriturismo dal marketplace; migrazione di <code>PLAN.md</code> (storico archiviato, GOAL futuri nel tracker).</li>
+  <li><b>GOAL M-3, dashboard</b> con roadmap, bacheca, agenti, decisioni e rapporti, <b>prima del pilota</b>.</li>
+  <li><b>GOAL M-4, pilota sul GOAL 7C</b> con un architetto e due implementatori, poi un bilancio di tempi, difetti e attriti a confronto con la 7B.</li>
+  <li><b>GOAL M-5, harness di valutazione</b> (proposto, da definire dopo il pilota).</li>
 </ol>
 <p class="r">Il lavoro su Maestro è un progetto a sé, con un proprio piano: non va nel <code>PLAN.md</code> di Agriturismo.</p>
 </section>

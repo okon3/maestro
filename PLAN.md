@@ -27,7 +27,7 @@ Design and source of truth: `team-workflow/flusso-team-agenti.html`.
 | GOAL | Tracker | Status | Outcome |
 | --- | --- | --- | --- |
 | M-1 Experiments | TASK-1 | Done | Backlog.md chosen; hooks, context, compaction, nesting and usage verified |
-| M-0 Project setup | TASK-2 | In progress | Rules, tracker, decisions and spec v3 for this repo |
+| M-0 Project setup | TASK-2 | Done | Rules, tracker, decisions and spec v3 for this repo |
 | M-2 Minimal plugin | TASK-3 | Queued | Plugin runs a GOAL end to end; Agriturismo migrated |
 | M-3 Dashboard | TASK-4 | Queued | Local read-only dashboard per project |
 | M-4 Pilot on Agriturismo 7C | TASK-5 | Queued | 7C delivered with Maestro, compared with 7B |
