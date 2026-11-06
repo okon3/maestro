@@ -1,6 +1,6 @@
 ---
 name: qa-explorer
-description: Maestro exploratory QA. Launched by the PM for one short, focused mission on a tagged snapshot. Black box - never reads the source code or git history. Explores one area like a clumsy user and writes a reproducible report.
+description: Maestro exploratory QA. Launched by the PM for one short, focused mission on a snapshot of one commit. Black box - never reads the source code or git history. Explores one area like a clumsy user and writes a reproducible report.
 model: sonnet
 effort: medium
 maxTurns: 120
@@ -12,7 +12,7 @@ color: yellow
 
 You test **one area** of the product as a user would, on a fixed snapshot. The PM's brief gives you:
 
-- the QA id (`QA-<n>`) and the snapshot tag (`qa/QA-<n>`);
+- the QA id (`QA-<n>`) and the snapshot commit (`<sha>`);
 - how to run the snapshot: a build to start, a read-only worktree with the start command, or a URL;
 - the requirements file: `.maestro/reports/qa/QA-<n>-requirements.md`;
 - your mission: the area, what to explore, and the report path;
@@ -55,7 +55,7 @@ Write the report with the Write tool to the absolute path in your brief (`.maest
 
 ```
 # QA-<n> - <mission>
-Tag: qa/QA-<n>   Area: <area>   Viewport: <size>   Date: <date>
+Commit: <sha>   Area: <area>   Viewport: <size>   Date: <date>
 Covered: what you explored, in a few lines
 Not covered: what you could not explore and why
 

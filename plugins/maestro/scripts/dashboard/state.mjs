@@ -724,10 +724,15 @@ export function buildState(inputs, now = new Date()) {
   const ownerQuestions = decisions.filter((d) => d.open && !d.blocking).length;
 
   const tags = inputs.git?.tags ?? [];
-  const lastCr = tags
-    .filter((t) => /^cr\/CR-/.test(t.name))
-    .sort((a, b) => (ms(b.date) || 0) - (ms(a.date) || 0))[0];
-  const since = lastCr ? ms(lastCr.date) : -Infinity;
+  // Cadence counts from the last review.done event; a cr/ tag is the fallback for projects that predate decision-21.
+  const lastDone = [...events].reverse().find((e) => e.type === "review.done");
+  const lastCr = lastDone
+    ? null
+    : tags
+        .filter((t) => /^cr\/CR-/.test(t.name))
+        .sort((a, b) => (ms(b.date) || 0) - (ms(a.date) || 0))[0];
+  const lastReview = lastDone ? (lastDone.data?.review ?? null) : (lastCr?.name.replace(/^cr\//, "") ?? null);
+  const since = lastDone ? ms(lastDone.ts) : lastCr ? ms(lastCr.date) : -Infinity;
   const integratedSinceLast = events.filter((e) => e.type === "task.status" && e.data?.to === "Integrated" && Date.parse(e.ts) > since).length;
 
   const runtime = inputs.runtime ?? {};
@@ -741,7 +746,7 @@ export function buildState(inputs, now = new Date()) {
     header: {
       activeGoal: activeView ? { id: activeView.id, title: activeView.title, done: activeView.done, total: activeView.total } : null,
       main: inputs.git?.main ?? null,
-      review: { integratedSinceLast, every: config.reviewEveryTasks, lastTag: lastCr?.name ?? null },
+      review: { integratedSinceLast, every: config.reviewEveryTasks, lastReview },
       context: snapshot(runtime.context, nowMs, (r) => ({ percent: r.percent ?? null })),
       usage: snapshot(runtime.usage, nowMs, (r) => ({ fiveHour: r.fiveHour ?? null, sevenDay: r.sevenDay ?? null, resetsAt: r.resetsAt ?? null })),
       ownerWaiting,
@@ -889,10 +894,10 @@ function readGit(root, mainBranch) {
   }
   const branch = run(["rev-parse", "--abbrev-ref", "HEAD"]);
   const tags = [];
-  const refs = run(["for-each-ref", "--format=%(refname:short)%09%(creatordate:iso-strict)", "refs/tags/done/", "refs/tags/qa/", "refs/tags/cr/"]);
+  const refs = run(["for-each-ref", "--format=%(refname:short)%09%(creatordate:iso-strict)", "refs/tags/cr/"]);
   for (const l of (refs ?? "").split("\n")) {
     const [name, date] = l.split("\t");
-    if (name && /^(done|qa|cr)\//.test(name)) tags.push({ name, date: toIso(date) });
+    if (name && /^cr\//.test(name)) tags.push({ name, date: toIso(date) });
   }
   return { main, branch, tags };
 }
