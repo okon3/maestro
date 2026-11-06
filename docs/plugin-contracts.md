@@ -42,7 +42,7 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
 `.gitattributes` (written by init): `.maestro/events.jsonl merge=union`, `backlog/** text=auto eol=lf` and `.maestro/** text=auto eol=lf` (LF in the working tree too, so Windows with `core.autocrlf` prints no LF/CRLF warnings on tracker and event commits; `text=auto` leaves binaries such as QA screenshots alone).
 | `.maestro/runtime/` | no | usage cache (`usage.json`), pause flag (`pause.json`), interruption marker (`interrupted.json`), hook band state, misc runtime |
 | `<git-common-dir>/maestro-locks/<task-id>/` | no | claim locks, shared by all worktrees |
-| `.claude/worktrees/<name>/` | no | implementer worktrees (`impl-n`); detached QA and review snapshots (`qa-QA-n`, `cr-CR-n`); may hold links to main-checkout folders (`worktreeSetup`) |
+| `.claude/worktrees/<name>/` | no | implementer worktrees (`impl-n`; `impl-fast` for a fast-lane fix: created with `--base <mainBranch>`); the architect's goal worktree (`goal-<G>`: created with `--checkout goal/<G>`; removed by the PM at GOAL close); detached QA and review snapshots (`qa-QA-n`, `cr-CR-n`); may hold links to main-checkout folders (`worktreeSetup`). The main checkout stays on the main branch, where the tracker is committed |
 | `<git-common-dir>/worktrees/<name>/maestro-links.json` | no | folders linked by the worktree setup, read by `--remove`; git deletes it with the worktree |
 | `backlog/` | yes | Backlog.md tracker |
 | `docs/adr/` | yes | architecture decision records |
@@ -91,7 +91,7 @@ Event vocabulary: every type the plugin, its skills and its agents write. The li
 | --- | --- | --- |
 | `task.status` | Backlog.md `onStatusChange` via `maestro event` (runs with `sh -c`; needs `sh` on PATH, checked by `maestro doctor`) | `{from, to}` (no title: shell quoting) |
 | `task.claim` / `task.claim_denied` / `task.release` | `maestro claim` / `maestro release` | `{reason?}`; a denial by the usage gate adds `gate` (`top` or `paused`) |
-| `task.measure` | `maestro measure` (the architect when a task is integrated; the PM for a fast-lane fix), one per task | `{agentIds, usage, wallMs, ownerInterventions, reworkCycles, batch?}`: `batch` lists every task of a batch (one implementer, several tasks); each task's event carries the same `agentIds` and usage, and the dashboard splits a shared agent's usage evenly among the tasks that list it |
+| `task.measure` | `maestro measure` (the architect when a task or a batch is integrated; the PM for a fast-lane task), one per task | `{agentIds, usage, wallMs, ownerInterventions, reworkCycles, batch?}`: `batch` lists every task of a batch (one implementer, several tasks); each task's event carries the same `agentIds` and usage, and the dashboard splits a shared agent's usage evenly among the tasks that list it |
 | `agent.start` / `agent.stop` | SubagentStart / SubagentStop hooks | `{agentType}`; stop adds `{usage}` (section 5) |
 | `agent.bind` | PreToolUse hook (`secret-guard.mjs`) when a subagent runs `maestro claim <task> --actor <name>` | `{model?}`: the model id the subagent runs on (`message.model` of the last assistant line in the last 64 KB of its transcript, best effort; absent when unreadable). `agentId`, `actor`, `task` at top level |
 | `agent.launch_denied` | PreToolUse hook `usage-gate.mjs` (`agentId` = the launching subagent, absent for the PM) | `{agentType, gate, reason}` |
@@ -105,6 +105,7 @@ Event vocabulary: every type the plugin, its skills and its agents write. The li
 | `maestro.init` | init skill, through `maestro event` | free-form |
 | `goal.approved` | PM skill, when the owner approves a GOAL (opens the GOAL's cost window on the dashboard) | free-form; `goal` at top level |
 | `goal.start` / `goal.done` | start-goal skill / PM skill at GOAL close | free-form; `goal` at top level |
+| `fastlane.start` | PM skill, when it launches a fast-lane fix (decision-19) | `{approved}`; `task` at top level |
 | `qa.start`, `qa.freeze`, `qa.done` | triage-qa skill | `{qa, tag?, areas?, defects?, unfrozen?}` |
 | `review.start`, `review.done` | periodic-review skill | `{review, range?, violations?, debt?, suggestions?}` |
 | `decision.recorded` | decision skill | `{id, title}` |

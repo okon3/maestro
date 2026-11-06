@@ -1,6 +1,6 @@
 ---
 name: periodic-review
-description: Run the periodic code review - due every reviewEveryTasks integrated tasks or at GOAL end - tag cr/CR-n, launch a fresh code-reviewer on the commit range, and turn violations, debt and suggestions into tasks and notes. Used by the PM.
+description: Run the periodic code review - due every reviewEveryTasks integrated tasks, fast-lane tasks included, checked at GOAL end and after fast-lane integrations - tag cr/CR-n, launch a fresh code-reviewer on the commit range, and turn violations, debt and suggestions into tasks and notes. Used by the PM.
 argument-hint: "[GOAL id]"
 ---
 
@@ -12,7 +12,12 @@ The review never blocks work in progress.
 
 ## 1. Is it due?
 
-It is due at the end of every GOAL, or when `reviewEveryTasks` (from `.maestro/config.json`) tasks have been integrated since the last review, whichever comes first. Count the `task.status` events with `"to":"Integrated"` in `.maestro/events.jsonl` after the last `review.start` event. If it is not due and the owner did not ask, stop here.
+It is due when `reviewEveryTasks` tasks (`.maestro/config.json`, default 15) have been integrated since the last `cr/CR-<n>` tag, fast-lane tasks included. The cadence counts tasks, not GOALs: the end of a GOAL alone does not make it due.
+
+- **When to check:** at every GOAL end (PM skill section 4) and after every fast-lane integration (PM skill section 10).
+- **How to count:** the dashboard header shows it (`Code review N/<reviewEveryTasks>`). By hand: the `task.status` events with `"to":"Integrated"` in `.maestro/events.jsonl` after the `review.start` event of the last review (all of them before the first review).
+
+If it is not due and the owner did not ask, stop here.
 
 ## 2. Tag and launch
 
@@ -20,7 +25,7 @@ It is due at the end of every GOAL, or when `reviewEveryTasks` (from `.maestro/c
 2. Choose the range base: the previous tag `cr/CR-<n-1>`. For the first review, use the main-branch commit just before the first GOAL integrated with Maestro.
 3. Tag the main branch: `git tag cr/CR-<n> <mainBranch>`. Give the reviewer a snapshot, not the main checkout: `maestro worktree cr-CR-<n> --detach cr/CR-<n>` (a detached worktree with the project's `worktreeSetup`, so the reviewer can run the checks without installing dependencies). The reviewer works only there and cannot edit (no Edit tool).
 4. Log: `maestro event review.start --goal <GOAL id> --actor pm --data '{"review":"CR-<n>","range":"<base>..cr/CR-<n>"}'`.
-5. Launch a **fresh** Agent with `subagent_type: "maestro:code-reviewer"`, in the foreground. Never reuse an earlier reviewer. Brief:
+5. Launch a **fresh** Agent with `subagent_type: "maestro:code-reviewer"`, in the foreground. Never reuse an earlier reviewer. At GOAL end, launch it in the same message as the QA missions, so they run in parallel (PM skill section 4, step 4). Brief:
 
 ```
 Review: CR-<n>
@@ -45,5 +50,6 @@ A violation that needs a material decision goes to the owner first (PM skill sec
 
 1. Log: `maestro event review.done --goal <GOAL id> --actor pm --data '{"review":"CR-<n>","violations":<v>,"debt":<d>,"suggestions":<s>}'`.
 2. Remove the snapshot: `maestro worktree cr-CR-<n> --remove --force` (it unlinks the shared folders first). Keep the tag.
-3. Commit the report, the tasks and the events.
-4. Tell the owner the counts and the violations in one line each. Resume the architect for priority tasks.
+3. Commit the report, the tasks and the events on the main branch, in your checkout; at GOAL end, together with the QA reports and tasks.
+4. Tell the owner the counts and the violations in one line each.
+5. At GOAL end, the tasks go to the architect together with the QA defects, as **one fix wave** (PM skill section 4, step 4): never forward them to an architect already fixing. After a fast-lane integration, no architect is running: violations go to the active GOAL's next wave, or the owner chooses between a new GOAL and, for a single fix that qualifies, the fast lane (PM skill section 10).
