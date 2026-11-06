@@ -28,6 +28,7 @@ This block is managed by the Maestro plugin (`/maestro:init` refreshes it). Do n
 | `docs/adr/` | architecture decisions | yes |
 | `.maestro/config.json` | Maestro settings (main branch, bands, review cadence, language, worktree setup) | yes |
 | `.maestro/handoff.md` | PM state summary, rewritten only by the PM | yes |
+| `.maestro/playbook.md` | project lessons, one section per role, curated by the PM at GOAL close; each brief carries its role's section | yes |
 | `.maestro/events.jsonl` | append-only event log (`merge=union`) | yes |
 | `.maestro/reports/` | task, QA and review reports | yes |
 | `.maestro/runtime/` | caches and hook state | no |

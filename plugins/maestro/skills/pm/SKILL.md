@@ -67,6 +67,8 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
    - **integrated**: the GOAL is merged into the main branch;
    - **blocked**: a material decision or an owner action is needed, or a task was read two ways (intent gap: the owner picks a reading);
    - **failed**: with evidence.
+
+   Whatever the state, log the learnings in its report (section 11).
 3. When blocked, ask the owner, record the decision, then resume **the same architect** with `SendMessage` to its agent id. It keeps its full history.
 4. **GOAL end: QA and code review together, then one fix wave.** When the architect returns **integrated**:
    1. Check whether the periodic review is due (`maestro:periodic-review` section 1).
@@ -80,6 +82,7 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
    - check its acceptance criteria with evidence;
    - set every Integrated subtask and the GOAL to Done;
    - a subtask that is not Integrated (an open defect or debt) must not be archived with the GOAL: with the owner, move it to the next GOAL or turn it into a standalone task (`backlog task edit <id> --parent ""` if supported, else recreate it and archive the old one with a pointer);
+   - curate the project playbook (section 11): `.maestro/playbook.md` goes into the closing commit below;
    - add a one-line history entry to `PLAN.md`;
    - `maestro event goal.done --goal <goal-id> --actor pm`;
    - archive the GOAL together with its Done tasks and commit everything in **one** commit on the main branch: tracker, `PLAN.md`, reports and `.maestro/events.jsonl` (hooks append events after other commits, so a pending change there is normal: always include it);
@@ -129,6 +132,7 @@ Edit files with the Edit and Write tools, not with ad-hoc scripts (Python may be
 - Decisions in `backlog/decisions/`.
 - `.maestro/handoff.md`.
 - QA requirements in `.maestro/reports/qa/`.
+- `.maestro/playbook.md`, curated at GOAL close (section 11).
 
 Update them at meaningful transitions. Never report a failed write as saved.
 
@@ -174,8 +178,9 @@ If any of these is in doubt, or turns out false while the work runs, stop and pr
    Contracts to read: <or "none">
    Checks: <the standard checks from AGENTS.md> and the named tests
    Out of scope: everything outside the task's scope; shared files
+   Playbook: <the `## implementer` section of .maestro/playbook.md, pasted as it is; leave the line out when empty>
    ```
-6. **On return**, act on its `STATE` as the architect does (`maestro:architect` section 4): answer `needs_context` with `SendMessage`; for `blocked` or `spec_stale` fix the task or the brief and relaunch (a recovery attempt), or propose a GOAL if the cause is material or bigger than one task.
+6. **On return**, log the learnings in its report (section 11, role `implementer`, `--task <id>`), then act on its `STATE` as the architect does (`maestro:architect` section 4): answer `needs_context` with `SendMessage`; for `blocked` or `spec_stale` fix the task or the brief and relaunch (a recovery attempt), or propose a GOAL if the cause is material or bigger than one task.
 7. **Review before integrating.** Check each point yourself; do not rely on the report:
    - the worktree is clean (`git -C <path> status --porcelain` is empty) and on branch `impl-fast`, and `git log <mainBranch>..impl-fast` holds only this task's commits;
    - `git diff --stat <mainBranch>...impl-fast`: every changed file is inside the task's `scope:` globs, and none is a package manifest, lockfile, configuration file, `backlog/` or `.maestro/` file;
@@ -192,3 +197,20 @@ If any of these is in doubt, or turns out false while the work runs, stop and pr
    - archive the task (`backlog task archive <id>`) and commit the tracker, the report and `.maestro/events.jsonl` on the main branch in one commit.
 10. **Review cadence.** Check whether the periodic review is due (`maestro:periodic-review` section 1); if so, run it.
 11. **Report** to the owner: what changed, the evidence (tests and checks), the merge commit. Push only with authority.
+
+## 11. Project playbook
+
+`.maestro/playbook.md` keeps this project's lessons that cost real time or will recur, one line each with its verified solution, in one section per role: `implementer`, `architect`, `qa`, `reviewer`, `pm`. Only you write it, and only at GOAL close; agents never write to it: they report.
+
+1. **Collect.** Every agent's final report has a `LEARNINGS:` field (at most 3 items, or "none"). When a report reaches you (the architect, a QA mission, the code reviewer, a fast-lane implementer), log each item: `maestro event learning.proposed --goal <GOAL id> --actor pm --data '{"role":"<architect|qa|reviewer|implementer>","text":"<item>"}'` (a fast lane has `--task <id>` instead of `--goal`). The architect logs its implementers' items itself. Log your own lessons with `"role":"pm"`.
+2. **Brief.** Each agent gets only its role's section, pasted as it is (left out when empty): the architect section in the architect's brief (`maestro:start-goal`), the qa section in each QA brief (`maestro:triage-qa`), the reviewer section in the reviewer's brief (`maestro:periodic-review`), the implementer section in a fast-lane brief. The architect pastes the implementer section into its implementers' briefs.
+3. **Curate** at GOAL close (section 4, step 5), before the closing commit. Take the `learning.proposed` events after the last `learning.curated` event (all of them if there is none), fast-lane ones included. For each item:
+   - **promote:** rewrite it as one line in its role's section: the problem and the verified solution;
+   - **merge:** fold it into an existing line that says the same thing;
+   - **drop:** a one-off, unverified, no longer true, or already in the playbook or in `AGENTS.md`.
+
+   A learning that is really a project rule (a convention or constraint every agent must follow) goes to `AGENTS.md` only with the owner's approval, and then not into the playbook: one source of truth, never the same rule in both places.
+4. **Prune** each section to about 40 lines: remove lines that changes in the code or the tools made stale, merge near-duplicates, keep the costliest lessons.
+5. **Log** `maestro event learning.curated --goal <GOAL id> --actor pm --data '{"proposed":<n>,"promoted":<n>,"merged":<n>,"dropped":<n>,"pruned":<n>}'`; add `"rules":<n>` for items the owner approved as `AGENTS.md` rules, and `"friction":<n>` (below).
+
+**Maestro friction.** A learning about Maestro itself (its agents, skills, `maestro` commands or hooks) rather than the project is not a playbook line. Only if `.maestro/config.json` has `frameworkFeedback: true`, append it to `.maestro/reports/maestro-friction.md` (date, GOAL, role, what happened, the workaround), together with any friction with the plugin you noticed yourself, and include that file in the closing commit. Otherwise drop it and do not mention it to the owner.

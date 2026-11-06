@@ -47,6 +47,8 @@ Viewport: desktop 1440x900 (unless the area needs another)
 Accounts and data: <...>
 ```
 
+**Playbook.** Add to each brief a `Playbook:` line with the `## qa` section of `.maestro/playbook.md`, pasted as it is (leave it out when the section is empty). When a mission returns, log the `LEARNINGS:` of its last message (PM skill section 11, role `qa`).
+
 ## 4. Triage
 
 First check that each mission's report file exists at its `Report:` path. If one is missing, write it yourself from the explorer's returned text, add a line `Note: written by the PM from the explorer's final message (the explorer did not write the file)`, and mention it in the triage file.

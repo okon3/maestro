@@ -32,6 +32,7 @@ Authority: <from the GOAL: commits on goal and implementer branches, merge to ma
 Owner decisions relevant to this GOAL: <links to backlog/decisions, or "none">
 Project checks: <the standard checks from AGENTS.md>
 Constraints and exclusions: <from the GOAL>
+Playbook: <the `## architect` section of .maestro/playbook.md, pasted as it is; leave the line out when empty>
 Return the final report in the format defined in your instructions.
 ```
 

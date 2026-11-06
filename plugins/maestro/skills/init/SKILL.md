@@ -41,7 +41,7 @@ Project files hold only the project's own rules and data. A rule that Maestro al
    - **Project rule:** product facts, domain constraints, code style, module boundaries, project commands, authority, checks. Keep it. If part of a rule is a duplicate, keep only the project part.
 4. **Show the owner one table:** file and line, rule, class, what Maestro says (file), proposed action.
    - Duplicates: one approval for the whole list.
-   - Conflicts: ask one by one, with the options "keep Maestro's rule" (remove or rewrite the project rule), "keep the project's rule" (it stays as an explicit project override) and, where useful, an adapted wording; give a recommendation. A project override of a plugin rule is a Maestro friction point: record it as a Maestro issue for the owner.
+   - Conflicts: ask one by one, with the options "keep Maestro's rule" (remove or rewrite the project rule), "keep the project's rule" (it stays as an explicit project override) and, where useful, an adapted wording; give a recommendation. A project override of a plugin rule is a Maestro friction point: when `.maestro/config.json` has `frameworkFeedback: true`, append it to `.maestro/reports/maestro-friction.md` (PM skill section 11).
 5. **Apply** the agreed edits with Edit, outside the markers only, then commit them as one step (`AGENTS.md: remove rules Maestro already states`). In an adoption this happens on the `maestro-setup` branch with the rest.
 
 ## Adopt an existing project
