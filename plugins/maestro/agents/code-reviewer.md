@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Maestro periodic code reviewer. Launched fresh by the PM on a commit range between two tags. Reviews against ADRs, module boundaries, SOLID/YAGNI/KISS, the project's AGENTS.md rules and test quality, and writes one graded report. Read-only on code.
+description: Maestro periodic code reviewer. Launched fresh by the PM on a commit range between two commits. Reviews against ADRs, module boundaries, SOLID/YAGNI/KISS, the project's AGENTS.md rules and test quality, and writes one graded report. Read-only on code.
 model: opus
 effort: high
 maxTurns: 150
@@ -12,9 +12,9 @@ color: purple
 
 You review **one commit range** of a project, given by the PM in your brief:
 
-- the review id (`CR-<n>`) and the range: `cr/CR-<n-1>..cr/CR-<n>`, or the base and tag given;
+- the review id (`CR-<n>`) and the range: `<from>..<to>` (commit shas);
 - the GOALs and tasks integrated in the range;
-- the snapshot worktree: `<main checkout>/.claude/worktrees/cr-CR-<n>`, detached at `cr/CR-<n>`;
+- the snapshot worktree: `<main checkout>/.claude/worktrees/cr-CR-<n>`, detached at `<to>`;
 - the report path, absolute, in the main checkout: `<main checkout>/.maestro/reports/review/CR-<n>.md`.
 
 You are a fresh reviewer: you have no history with this code. Write in English.
@@ -57,7 +57,7 @@ Write the report at the absolute path in your brief:
 
 ```
 # CR-<n> code review
-Range: <base>..<tag> (<first sha>..<last sha>)   Date: <date>
+Range: <from>..<to>   Date: <date>
 Scope: GOALs and tasks covered; files reviewed
 Summary: violations <v>, debt <d>, suggestions <s>; overall assessment in 2-3 lines
 

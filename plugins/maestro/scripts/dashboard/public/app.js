@@ -276,7 +276,7 @@ function reviewGauge(review) {
   const every = Number(review.every) || 0;
   const due = every > 0 && n >= every;
   const pct = every ? Math.min(100, Math.round((n / every) * 100)) : 0;
-  const since = review.lastTag ? `since ${idEl(review.lastTag)}` : "since the start";
+  const since = review.lastReview ? `since ${idEl(review.lastReview)}` : "since the start";
   return gauge(
     `g-review${due ? " lvl-warn" : ""}`,
     "Code review",

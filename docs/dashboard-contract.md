@@ -21,7 +21,7 @@ Owned by the M-3 architect. Design intent: `team-workflow/flusso-team-agenti.htm
 | Decisions | `backlog/decisions/*.md`: id, title, date, status. |
 | Events | `.maestro/events.jsonl` via `lib/events.mjs` `readEvents`. |
 | Reports | `.maestro/reports/**/*.md`: kind (`task`, `qa`, `review`), id from the file name, mtime, first heading or line. |
-| Git | main branch tip (short sha and subject), current branch, tags `done/*`, `qa/QA-*`, `cr/CR-*` with dates. |
+| Git | main branch tip (short sha and subject), current branch, legacy `cr/CR-*` tags with dates (fallback for the review counter; no skill creates tags any more, decision-21). |
 | Runtime | `.maestro/runtime/usage.json` (`{ts, fiveHour, sevenDay, resetsAt, sevenDayResetsAt}`; `resetsAt` is the five-hour reset, Unix seconds) and `.maestro/runtime/context.json` (`{ts, sessionId, percent, contextTokens, window}`, written by the context-watch hook on every run in the main session). |
 | PM sessions | `.maestro/runtime/pm-sessions.json` (`{sessions: [{sessionId, transcriptPath, firstSeen, lastSeen}]}`), written by the context-watch hook: one entry per main-session transcript, added or updated on every run. `loadState` reads each listed transcript that still exists with `usageSummary(path, {from, to})` for the PM row of a GOAL window, and caches the result in memory by path, size, mtime and window. |
 | Prices | `scripts/dashboard/prices.mjs`: list prices per million tokens for each model family (input, output, cache read, cache write), with source URL and date. Config `prices` in `.maestro/config.json` overrides them. |
@@ -35,7 +35,7 @@ Owned by the M-3 architect. Design intent: `team-workflow/flusso-team-agenti.htm
   "header": {
     "activeGoal": { "id": "TASK-1", "title": "...", "done": 3, "total": 7 } ,
     "main": { "sha": "1211ccf", "subject": "...", "date": "ISO" },
-    "review": { "integratedSinceLast": 9, "every": 15, "lastTag": "cr/CR-1" },
+    "review": { "integratedSinceLast": 9, "every": 15, "lastReview": "CR-1" },
     "context": { "percent": 48.2, "ts": "ISO", "stale": false },
     "usage": { "fiveHour": 62, "sevenDay": 31, "resetsAt": 1793988600, "ts": "ISO", "stale": false },
     "ownerWaiting": 1,
@@ -79,7 +79,7 @@ Rules:
 - **Milestones:** `completed` is true when the milestone has GOALs and all are done; its drafts do not keep it active (the page folds completed milestones away). `tasks` lists the non-archived tasks that are not GOALs and have no parent GOAL, under their own milestone, or in the "No milestone" entry when they name none.
 - **Agent `mission`:** for `maestro:qa-explorer` and `maestro:code-reviewer`, the `data.qa` / `data.review` id (QA-1, CR-1) of the latest `qa.start` / `review.start` event at or before the agent's start; null otherwise.
 - **Agent `model`:** the model with the largest token share in the usage of the agent's latest `agent.stop`; else `data.model` of its `agent.bind` (recorded by the hook at claim time from the subagent transcript); else planned: the `Modello:` / `model:` line in the task text (`opus`, `sonnet`, `haiku`), else the agent definition default (implementer sonnet, architect opus). `modelPlanned` is true only for the last two. QA and reviewer agents have no default (null) until they stop.
-- **Review counter:** `task.status` events to `Integrated` after the date of the latest `cr/CR-*` tag (all of them if there is no tag).
+- **Review counter:** `task.status` events to `Integrated` after the latest `review.done` event (`lastReview` is its `data.review`). If there is no such event, the newest `cr/CR-*` tag is used instead (`lastReview` is the tag name without `cr/`); with neither, all of them are counted and `lastReview` is null.
 - **Agents:** pair `agent.start` and `agent.stop` events by `agentId`. Link an agent to its task and actor in this order: `task.measure` agent ids, then `agent.bind` (exact, written by the hook at claim time), then for a stopped implementer the latest `task.release` in the 2 minutes before its stop, and only then the time-order heuristic below (parallel agents can start in the same millisecond). Running means no stop yet and a start less than 12 hours old. Link an agent to a task and actor through the nearest `task.claim` that follows its start within 2 minutes, by the same actor's claim.
 - **Usage refresh:** while at least one page is connected, the server runs `maestro usage --probe` when the last sample is older than 10 minutes, or older than 2 minutes when either window of that sample is at 80% or more (checked every minute; `usageRefreshMs` in `server.mjs`): near the limit the usage gates need a recent sample. Each probe is one minimal `claude -p` call on the cheapest model. A resumed agent (a second `agent.start` with the same id) counts as running again.
 - **Stale:** `context` and `usage` are stale when older than 30 minutes.

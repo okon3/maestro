@@ -9,8 +9,8 @@ This block is managed by the Maestro plugin (`/maestro:init` refreshes it). Do n
 - **PM** (main session, `maestro:pm` skill): plans with the owner, keeps `PLAN.md`, GOALs, decisions and the handoff; launches the architect, QA and the reviewer. Never writes product code.
 - **Architect** (`maestro:architect`): leads one GOAL in waves, writes ADRs and contracts, launches two implementers, reviews and integrates.
 - **Implementers** (`maestro:implementer`): one task each, in their own worktree and file scope, one named test per acceptance criterion.
-- **QA explorer** (`maestro:qa-explorer`): black-box missions on a tagged snapshot (`qa/QA-<n>`).
-- **Code reviewer** (`maestro:code-reviewer`): fresh periodic review of a tag range (`cr/CR-<n>`).
+- **QA explorer** (`maestro:qa-explorer`): black-box missions on a snapshot of one commit (sha recorded in `qa.start`).
+- **Code reviewer** (`maestro:code-reviewer`): fresh periodic review of a commit range (`from` and `to` shas recorded in `review.start`).
 
 ### Decisions
 
