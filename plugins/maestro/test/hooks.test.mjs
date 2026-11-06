@@ -21,11 +21,21 @@ function tempRepo({ init = true, config = {} } = {}) {
   return dir;
 }
 
-function run(script, input) {
+// The usage gate may probe usage: always through the fake claude (prints nothing unless FAKE_CLAUDE_USAGE is set).
+const FAKE_CLAUDE = join(dirname(fileURLToPath(import.meta.url)), "cli-fake-claude.mjs");
+
+function run(script, input, extraEnv = {}) {
   const r = spawnSync("node", [join(HOOKS, `${script}.mjs`)], {
     input: JSON.stringify(input),
     encoding: "utf8",
-    env: { ...process.env, GIT_CEILING_DIRECTORIES: tmpdir() },
+    env: {
+      ...process.env,
+      GIT_CEILING_DIRECTORIES: tmpdir(),
+      MAESTRO_CLAUDE_BIN: process.execPath,
+      MAESTRO_CLAUDE_ARGS: JSON.stringify([FAKE_CLAUDE]),
+      FAKE_CLAUDE_USAGE: "",
+      ...extraEnv,
+    },
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
@@ -99,6 +109,7 @@ test("hooks_noop_without_config", () => {
     ["agent-events", { hook_event_name: "SubagentStart", agent_id: "a", agent_type: "x" }],
     ["stop-failure", { error: "rate_limit" }],
     ["secret-guard", { agent_id: "a", tool_name: "Read", tool_input: { file_path: ".env" } }],
+    ["usage-gate", { tool_name: "Agent", tool_input: { subagent_type: "maestro:architect" } }],
   ]) {
     const r = run(script, { cwd: dir, ...extra });
     assert.equal(r.status, 0, script);
@@ -140,6 +151,83 @@ test("stop-failure logs limit.hit", () => {
   const ev = readEvents(dir)[0];
   assert.equal(ev.type, "limit.hit");
   assert.deepEqual(ev.data, { error: "rate_limit" });
+});
+
+test("stop_failure_rate_limit_leaves_interrupted_marker", () => {
+  const dir = tempRepo();
+  const marker = join(dir, ".maestro", "runtime", "interrupted.json");
+  run("stop-failure", { cwd: dir, error: "overloaded" });
+  assert.equal(existsSync(marker), false, "other API errors leave no marker");
+  run("stop-failure", { cwd: dir, error: "rate_limit", agent_id: "ag1", agent_type: "maestro:implementer" });
+  run("stop-failure", { cwd: dir, error: "rate_limit" });
+  const m = JSON.parse(readFileSync(marker, "utf8"));
+  assert.equal(m.count, 2);
+  assert.deepEqual(m.agentIds, ["ag1"]);
+  assert.deepEqual(types(dir), ["limit.hit", "limit.hit", "limit.hit"]);
+  // The next session start tells the PM to salvage.
+  for (const source of ["startup", "resume", "compact"]) {
+    const text = JSON.parse(run("session-start", { cwd: dir, source }).stdout).hookSpecificOutput.additionalContext;
+    assert.match(text, /interrupted by a usage limit/, source);
+    assert.match(text, /maestro salvage/, source);
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Usage gate on Agent launches.
+
+function writeUsage(dir, { fiveHour, sevenDay = 10, ageMs = 0 }) {
+  mkdirSync(join(dir, ".maestro", "runtime"), { recursive: true });
+  const ts = new Date(Date.now() - ageMs).toISOString();
+  writeFileSync(join(dir, ".maestro", "runtime", "usage.json"), JSON.stringify({ ts, fiveHour, sevenDay, resetsAt: 1793988600 }));
+}
+
+const launch = (dir, subagent_type, extra = {}, env = {}) =>
+  run("usage-gate", { cwd: dir, hook_event_name: "PreToolUse", tool_name: "Agent", tool_input: { subagent_type, prompt: "x" }, ...extra }, env);
+
+const gateDenied = (r) => {
+  assert.equal(r.status, 0);
+  if (!r.stdout) return null;
+  const out = JSON.parse(r.stdout).hookSpecificOutput;
+  assert.equal(out.hookEventName, "PreToolUse");
+  assert.equal(out.permissionDecision, "deny");
+  return out.permissionDecisionReason;
+};
+
+test("usage_gate_denies_maestro_agent_launch_at_top_band", () => {
+  const dir = tempRepo();
+  writeUsage(dir, { fiveHour: 96 });
+  // From the architect (a subagent): stop and report to the PM.
+  const fromArchitect = gateDenied(launch(dir, "maestro:implementer", { agent_id: "arch1", agent_type: "maestro:architect" }));
+  assert.match(fromArchitect, /usage gate/);
+  assert.match(fromArchitect, /five-hour usage 96%.*top usage band 95%/);
+  assert.match(fromArchitect, /report to the PM/);
+  // From the PM (main session): pause.
+  assert.match(gateDenied(launch(dir, "maestro:code-reviewer")), /maestro:pause/);
+  // Other agent types are never gated.
+  assert.equal(gateDenied(launch(dir, "Explore")), null);
+  const ev = readEvents(dir).filter((e) => e.type === "agent.launch_denied");
+  assert.deepEqual(ev.map((e) => e.data.agentType), ["maestro:implementer", "maestro:code-reviewer"]);
+  // Below the top band (even in the lower band) launches are allowed.
+  writeUsage(dir, { fiveHour: 90 });
+  assert.equal(gateDenied(launch(dir, "maestro:implementer", { agent_id: "arch1" })), null);
+});
+
+test("usage_gate_denies_maestro_agent_launch_while_paused", () => {
+  const dir = tempRepo();
+  writeUsage(dir, { fiveHour: 10 });
+  writeFileSync(join(dir, ".maestro", "runtime", "pause.json"), JSON.stringify({ since: "2026-11-06T10:00:00Z", reason: "owner" }));
+  assert.match(gateDenied(launch(dir, "maestro:architect")), /pause is active.*\(owner\)/);
+});
+
+test("usage_gate_probes_a_stale_sample_and_fails_open", () => {
+  const dir = tempRepo();
+  // No sample and the probe returns nothing: allowed (fail open).
+  assert.equal(gateDenied(launch(dir, "maestro:architect")), null);
+  // A stale sample is refreshed by a probe.
+  writeUsage(dir, { fiveHour: 50, ageMs: 10 * 60 * 1000 });
+  const r = launch(dir, "maestro:architect", {}, { FAKE_CLAUDE_USAGE: JSON.stringify({ five: 0.97 }) });
+  assert.match(gateDenied(r), /five-hour usage 97%/);
+  assert.equal(readEvents(dir).filter((e) => e.type === "usage.sample").length, 1);
 });
 
 const guard = (dir, tool_name, tool_input, extra = { agent_id: "ag1", agent_type: "maestro:implementer" }) =>

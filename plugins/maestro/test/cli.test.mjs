@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const CLI = join(here, "..", "scripts", "cli.mjs");
 const FAKE = join(here, "cli-fake-backlog.mjs");
 const STUB = join(here, "cli-context-stub.mjs");
+const FAKE_CLAUDE = join(here, "cli-fake-claude.mjs");
 
 function setup({ tasks = {}, version = "1.55.3", config } = {}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "maestro-cli-")));
@@ -28,8 +29,17 @@ function setup({ tasks = {}, version = "1.55.3", config } = {}) {
     MAESTRO_BACKLOG_ARGS: JSON.stringify([FAKE]),
     FAKE_BACKLOG_STATE: state,
     MAESTRO_TEST_CONTEXT_MODULE: STUB,
+    // Claims probe usage when no fresh sample exists: never call the real claude. Without FAKE_CLAUDE_USAGE the
+    // fake prints nothing, so usage is unknown and claims are not gated.
+    MAESTRO_CLAUDE_BIN: process.execPath,
+    MAESTRO_CLAUDE_ARGS: JSON.stringify([FAKE_CLAUDE]),
+    FAKE_CLAUDE_USAGE: "",
+    GIT_AUTHOR_NAME: "t",
+    GIT_AUTHOR_EMAIL: "t@t",
+    GIT_COMMITTER_NAME: "t",
+    GIT_COMMITTER_EMAIL: "t@t",
   };
-  const run = (args, cwd = dir) => spawnSync(process.execPath, [CLI, ...args], { cwd, env, encoding: "utf8" });
+  const run = (args, cwd = dir, extraEnv = {}) => spawnSync(process.execPath, [CLI, ...args], { cwd, env: { ...env, ...extraEnv }, encoding: "utf8" });
   const edits = () => JSON.parse(readFileSync(state, "utf8")).edits;
   return { dir, git, env, run, edits, state };
 }
@@ -189,4 +199,160 @@ test("worktree_tracks_remote_goal_branch", () => {
   assert.equal(r.status, 0, r.stderr);
   const rev = execFileSync("git", ["rev-parse", "goal/TASK-7"], { cwd: dir, encoding: "utf8" }).trim();
   assert.equal(rev, sha, "goal branch follows the remote, not main");
+});
+
+// ---------------------------------------------------------------------------------------------
+// Usage gate, pause flag and salvage (M-6 tasks 8.4 and 8.7).
+
+const RESET = 1793988600; // Unix seconds, as in the probe output
+function writeUsage(dir, { fiveHour, sevenDay = 10, ageMs = 0 }) {
+  mkdirSync(join(dir, ".maestro", "runtime"), { recursive: true });
+  const ts = new Date(Date.now() - ageMs).toISOString();
+  writeFileSync(join(dir, ".maestro", "runtime", "usage.json"), JSON.stringify({ ts, fiveHour, sevenDay, resetsAt: RESET }));
+}
+const ready = (id) => ({ [id]: { title: "t", status: "Ready", assignees: [] } });
+
+test("claim_refused_at_top_usage_band", () => {
+  const { dir, run, edits } = setup({ tasks: ready("TASK-1") });
+  writeUsage(dir, { fiveHour: 96 });
+  const r = run(["claim", "TASK-1", "--actor", "impl-1"]);
+  assert.equal(r.status, 2);
+  assert.match(r.stdout, /five-hour usage 96%/);
+  assert.match(r.stdout, /top usage band 95%/);
+  assert.ok(r.stdout.includes(new Date(RESET * 1000).toISOString()), "names the reset time");
+  assert.equal(edits().length, 0);
+  assert.equal(existsSync(lockDir(dir, "TASK-1")), false);
+  const denied = readEvents(dir).find((e) => e.type === "task.claim_denied");
+  assert.equal(denied.data.gate, "top");
+  // The seven-day window gates too, and a custom top band (last of usageBands) is honoured.
+  const custom = setup({ tasks: ready("TASK-2"), config: { mainBranch: "master", usageBands: [70, 90] } });
+  writeUsage(custom.dir, { fiveHour: 20, sevenDay: 91 });
+  const c = custom.run(["claim", "TASK-2", "--actor", "impl-1"]);
+  assert.equal(c.status, 2);
+  assert.match(c.stdout, /seven-day usage 91%.*top usage band 90%/);
+});
+
+test("claim_allowed_below_top_band_and_when_usage_unknown", () => {
+  const { dir, run } = setup({ tasks: { ...ready("TASK-1"), ...ready("TASK-2") } });
+  writeUsage(dir, { fiveHour: 90 }); // lower band: claims still allowed
+  assert.equal(run(["claim", "TASK-1", "--actor", "impl-1"]).status, 0);
+  rmSync(join(dir, ".maestro", "runtime", "usage.json"));
+  const r = run(["claim", "TASK-2", "--actor", "impl-2"]); // no sample, probe prints nothing: fail open, said on stderr
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /usage unknown.*not gated/);
+});
+
+test("claim_probes_when_sample_is_stale", () => {
+  const { dir, run } = setup({ tasks: ready("TASK-1") });
+  writeUsage(dir, { fiveHour: 50, ageMs: 6 * 60 * 1000 }); // older than 5 minutes
+  const log = join(dir, "probes.log");
+  const r = run(["claim", "TASK-1", "--actor", "impl-1"], dir, { FAKE_CLAUDE_USAGE: JSON.stringify({ five: 0.97, reset: RESET }), FAKE_CLAUDE_LOG: log });
+  assert.equal(r.status, 2);
+  assert.match(r.stdout, /five-hour usage 97%/);
+  assert.equal(readFileSync(log, "utf8"), "probe\n");
+  assert.equal(readEvents(dir).filter((e) => e.type === "usage.sample").length, 1);
+  // A fresh sample is used as is: no second probe.
+  assert.equal(run(["claim", "TASK-1", "--actor", "impl-1"], dir, { FAKE_CLAUDE_LOG: log }).status, 2);
+  assert.equal(readFileSync(log, "utf8"), "probe\n");
+});
+
+test("claim_refused_while_paused", () => {
+  const { dir, run } = setup({ tasks: ready("TASK-1") });
+  writeUsage(dir, { fiveHour: 10 });
+  assert.equal(run(["pause", "--on", "--reason", "usage", "--actor", "pm"]).status, 0);
+  assert.ok(existsSync(join(dir, ".maestro", "runtime", "pause.json")));
+  const r = run(["claim", "TASK-1", "--actor", "impl-1"]);
+  assert.equal(r.status, 2);
+  assert.match(r.stdout, /pause is active.*\(usage\)/);
+  assert.match(run(["pause"]).stdout, /paused since/);
+  assert.equal(run(["pause", "--off", "--actor", "pm"]).status, 0);
+  assert.equal(existsSync(join(dir, ".maestro", "runtime", "pause.json")), false);
+  assert.equal(run(["claim", "TASK-1", "--actor", "impl-1"]).status, 0);
+  const phases = readEvents(dir).filter((e) => e.type === "session.pause").map((e) => e.data.phase);
+  assert.deepEqual(phases, ["start", "off"]);
+});
+
+test("reclaim_by_the_holder_is_allowed_above_the_band", () => {
+  const { dir, run, edits } = setup({ tasks: { ...ready("TASK-1"), ...ready("TASK-2") } });
+  writeUsage(dir, { fiveHour: 40 });
+  assert.equal(run(["claim", "TASK-1", "--actor", "impl-1"]).status, 0);
+  writeUsage(dir, { fiveHour: 99 });
+  const again = run(["claim", "TASK-1", "--actor", "impl-1", "--json"]); // resumed after needs_context
+  assert.equal(again.status, 0, again.stdout);
+  assert.equal(JSON.parse(again.stdout).held, true);
+  assert.equal(edits().length, 1, "no second tracker edit");
+  assert.equal(run(["claim", "TASK-1", "--actor", "impl-2"]).status, 2, "another actor is still refused");
+  assert.equal(run(["claim", "TASK-2", "--actor", "impl-1"]).status, 2, "a new task is refused");
+});
+
+test("usage_check_reports_gate_levels", () => {
+  const { dir, run } = setup();
+  const check = () => {
+    const r = run(["usage", "--check", "--json"]);
+    return [r.status, JSON.parse(r.stdout).level];
+  };
+  writeUsage(dir, { fiveHour: 50 });
+  assert.deepEqual(check(), [0, "ok"]);
+  writeUsage(dir, { fiveHour: 85 });
+  assert.deepEqual(check(), [0, "lower"]);
+  writeUsage(dir, { fiveHour: 95 });
+  assert.deepEqual(check(), [2, "top"]);
+  writeUsage(dir, { fiveHour: 50 });
+  run(["pause", "--on"]);
+  assert.deepEqual(check(), [2, "paused"]);
+  run(["pause", "--off"]);
+  rmSync(join(dir, ".maestro", "runtime", "usage.json"));
+  assert.deepEqual(check(), [0, "unknown"]);
+  assert.match(run(["usage", "--check"]).stdout, /^UNKNOWN: usage unknown/);
+});
+
+test("salvage_commits_uncommitted_work_to_wip_task_branch", () => {
+  const { dir, git, run } = setup({ tasks: ready("TASK-1.13") });
+  const out = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+  for (const n of ["impl-1", "impl-2", "impl-3"]) assert.equal(run(["worktree", n, "--goal", "TASK-1"]).status, 0);
+  // A Claude Code isolation worktree (not an implementer's): never touched.
+  git("worktree", "add", "-q", "-b", "worktree-agent-x", join(dir, ".claude", "worktrees", "agent-x"));
+  writeUsage(dir, { fiveHour: 10 });
+  assert.equal(run(["claim", "TASK-1.13", "--actor", "impl-1"]).status, 0);
+  const wt = (n) => join(dir, ".claude", "worktrees", n);
+  writeFileSync(join(wt("impl-1"), "half.txt"), "half done");
+  writeFileSync(join(wt("impl-2"), "other.txt"), "no claim");
+  writeFileSync(join(wt("agent-x"), "mine.txt"), "someone else's");
+  writeFileSync(join(dir, ".maestro", "runtime", "interrupted.json"), JSON.stringify({ since: "t", count: 1 }));
+  const mainHead = out(dir, "rev-parse", "HEAD");
+  const mainStatus = out(dir, "status", "--porcelain");
+
+  const r = run(["salvage", "--json"]);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  const results = JSON.parse(r.stdout).results;
+  assert.deepEqual(results.map((x) => [x.worktree, x.salvaged]), [["impl-1", true], ["impl-2", true], ["impl-3", false]]);
+  // The claimed task names the branch; without a claim the worktree name does.
+  assert.equal(out(dir, "show", "wip/TASK-1.13:half.txt"), "half done");
+  assert.equal(out(dir, "show", "wip/impl-2:other.txt"), "no claim");
+  assert.equal(out(wt("impl-1"), "status", "--porcelain"), "");
+  // The main checkout and the foreign worktree are untouched.
+  assert.equal(out(dir, "rev-parse", "HEAD"), mainHead);
+  assert.equal(out(dir, "status", "--porcelain"), mainStatus);
+  assert.match(out(wt("agent-x"), "status", "--porcelain"), /mine\.txt/);
+  const ev = readEvents(dir).filter((e) => e.type === "work.salvaged");
+  assert.equal(ev.length, 2);
+  assert.equal(ev[0].task, "TASK-1.13");
+  assert.equal(ev[0].data.branch, "wip/TASK-1.13");
+  assert.equal(existsSync(join(dir, ".maestro", "runtime", "interrupted.json")), false, "marker cleared");
+  // Run again: nothing left to save.
+  assert.ok(JSON.parse(run(["salvage", "--json"]).stdout).results.every((x) => !x.salvaged));
+});
+
+test("status_reports_interruption_and_pause", () => {
+  const { dir, run } = setup();
+  mkdirSync(join(dir, ".maestro", "runtime"), { recursive: true });
+  writeFileSync(join(dir, ".maestro", "runtime", "interrupted.json"), JSON.stringify({ since: "2026-11-06T10:00:00Z", count: 2 }));
+  run(["pause", "--on", "--reason", "limit"]);
+  const text = run(["status"]).stdout;
+  assert.match(text, /interrupted by a usage limit/);
+  assert.match(text, /maestro salvage/);
+  assert.match(text, /PAUSED since/);
+  const s = JSON.parse(run(["status", "--json"]).stdout);
+  assert.equal(s.interrupted.count, 2);
+  assert.equal(s.pause.reason, "limit");
 });

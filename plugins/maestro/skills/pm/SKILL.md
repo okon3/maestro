@@ -16,7 +16,7 @@ You never write product code and never integrate. You keep the plan, the tracker
 
 ## 1. Start or resume
 
-1. Read `AGENTS.md`, `PLAN.md` and `.maestro/handoff.md` if it exists, then run `maestro status`.
+1. Read `AGENTS.md`, `PLAN.md` and `.maestro/handoff.md` if it exists, then run `maestro status`. If it reports work interrupted by a usage limit or an active pause, follow the `maestro:resume` skill.
 2. Reconcile the recorded state with reality:
    - git branches and worktrees (`git worktree list`);
    - tasks shown In Progress;
@@ -93,10 +93,16 @@ Hooks warn you when your context crosses `contextBands`:
 - **65%:** rewrite `.maestro/handoff.md` now (state, running agent ids, open decisions, next action) and commit it.
 - **80%:** tell the owner. Compaction will re-inject the handoff, so keep it current.
 
-Usage (5-hour and weekly windows): run `maestro usage --probe` at wave boundaries, not more often.
+Usage (5-hour and weekly windows, bands `usageBands`, default 85 and 95): run `maestro usage --check` **before every agent launch**, and before you resume an agent with new work. It reuses a sample younger than 5 minutes and probes otherwise, and prints the level:
 
-- Above 85%: start no long tasks.
-- Above 95%: use the `maestro:pause` skill.
+- **ok:** go ahead.
+- **lower** (at or above the lower band): launch or resume no long agents: no architect (new GOAL or fix wave), no code reviewer, no QA mission. Let work in flight finish.
+- **top** or **paused** (exit code 2, at or above the top band or during a pause): launch nothing; use the `maestro:pause` skill.
+- **unknown** (no sample could be read): go ahead with care and probe again before the next launch.
+
+The top band is also enforced: at or above it, or while a pause is active, `maestro claim` refuses new claims and a hook denies launching any `maestro:*` agent, yours and the architect's. A denial is not a failure: do not retry, pause.
+
+If work was interrupted by a usage limit (the session start and `maestro status` say so), run `maestro salvage` once no agent is running, then follow the `maestro:resume` skill.
 
 You cannot run `/compact` or `/clear` yourself. If the owner should run one, say so with the exact command.
 

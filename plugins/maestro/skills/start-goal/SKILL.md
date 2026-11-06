@@ -11,7 +11,7 @@ GOAL: `$ARGUMENTS`
 1. **Check approval and fields.** Run `backlog task $ARGUMENTS --plain`. The GOAL must be labelled `goal`, must not carry `proposed`, and its description must state outcome, approval, exclusions and authority, with acceptance criteria present. If anything is missing, agree it with the owner first.
 2. **Check capacity.**
    - Run `maestro doctor`. It must pass.
-   - Run `maestro usage --probe`. Above the highest usage band, do not start: report to the owner.
+   - Run `maestro usage --check`. At level `lower`, `top` or `paused` (at or above the lower usage band, or a pause is active), do not start: an architect is a long agent. Report to the owner with the reset time.
    - Check your context. Above the first context band, do not start a GOAL.
 3. **Check that no other GOAL is In Progress.** If one is, parallel GOALs need the owner's explicit agreement.
 4. **Prepare.**

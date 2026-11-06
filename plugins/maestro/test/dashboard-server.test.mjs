@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, realpa
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { startServer } from "../scripts/dashboard/server.mjs";
+import { startServer, usageRefreshMs } from "../scripts/dashboard/server.mjs";
 import { tempProject, write } from "./dashboard-helpers.mjs";
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), "..", "scripts", "cli.mjs");
@@ -149,4 +149,12 @@ test("dashboard_command_reuses_server", async () => {
   } finally {
     run("--stop");
   }
+});
+
+test("dashboard_samples_usage_every_2_minutes_from_80_percent", () => {
+  const min = 60 * 1000;
+  assert.equal(usageRefreshMs(null), 10 * min);
+  assert.equal(usageRefreshMs({ fiveHour: 79.9, sevenDay: 30 }), 10 * min);
+  assert.equal(usageRefreshMs({ fiveHour: 80, sevenDay: 30 }), 2 * min);
+  assert.equal(usageRefreshMs({ fiveHour: 12, sevenDay: 88 }), 2 * min);
 });
