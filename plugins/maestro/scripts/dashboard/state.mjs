@@ -179,6 +179,10 @@ export function parseTaskFile(text, { archived = false, draft = false } = {}) {
     updatedAt: toIso(first(data, "updated_date")) ?? created,
     archived,
     draft,
+    // Model the architect planned in the notes ("Modello: Opus", "model: sonnet").
+    plannedModel: (/\b(?:modello|model)\s*[:=]\s*\**\s*(opus|sonnet|haiku)\b/i.exec(String(text))?.[1] ?? "").toLowerCase() || null,
+    // Decisions the task mentions (references or text), e.g. "decision-7": they block the GOAL while open.
+    decisionRefs: [...new Set((String(text).match(/\bdecision-\d+\b/gi) ?? []).map((d) => d.toLowerCase()))],
     ...acCounts(body),
   };
 }
@@ -213,7 +217,10 @@ function silentEnds(events) {
   return ended;
 }
 
-function buildAgents(events, now) {
+// Default model of an agent definition, shown as "planned" when nothing better is known.
+const PLANNED_MODEL = { "maestro:implementer": "sonnet", "maestro:architect": "opus" };
+
+function buildAgents(events, now, tasksById) {
   const quietEnd = silentEnds(events);
   const starts = new Map();
   const stops = new Map();
@@ -236,7 +243,9 @@ function buildAgents(events, now) {
   const actorByTask = new Map(claims.map((c) => [normId(c.e.task), c.e.actor]));
   // agent.bind: written by the PreToolUse hook when a subagent runs `maestro claim` (exact agent id).
   const bound = new Map();
-  for (const e of events) if (e.type === "agent.bind" && e.agentId && e.task) bound.set(e.agentId, { task: normId(e.task), actor: e.actor ?? null });
+  for (const e of events) {
+    if (e.type === "agent.bind" && e.agentId && e.task) bound.set(e.agentId, { task: normId(e.task), actor: e.actor ?? null, model: e.data?.model ?? null });
+  }
   // An implementer stops right after it releases its task: pair a stop with the latest release before it.
   const releases = events.filter((e) => e.type === "task.release" && e.task).map((e) => ({ e, t: Date.parse(e.ts), used: false }));
   const agents = [];
@@ -280,6 +289,17 @@ function buildAgents(events, now) {
     }
     // Other roles (architect, QA, reviewer) are named after their agent type.
     if (!actor && type) actor = type.replace(/^.*:/, "");
+    // QA explorers and code reviewers have a mission: the id in the latest qa.start / review.start before their start.
+    const missionType = /qa-explorer/.test(type ?? "") ? "qa.start" : /code-reviewer/.test(type ?? "") ? "review.start" : null;
+    const missionEvent = missionType ? events.filter((e) => e.type === missionType && Date.parse(e.ts) <= t0).pop() : null;
+    const mission = missionEvent ? String(missionEvent.data?.[missionType === "qa.start" ? "qa" : "review"] ?? "") || null : null;
+    // Model: measured (largest token share in the stop usage), else recorded at claim time, else planned.
+    const used = Object.entries(stop?.data?.usage?.models ?? {})
+      .map(([id, u]) => [id, ["input", "output", "cacheRead", "cacheWrite"].reduce((n, k) => n + (Number(u?.[k]) || 0), 0)])
+      .sort((a, b) => b[1] - a[1])[0]?.[0];
+    const planned = (task && tasksById?.get(task)?.plannedModel) || PLANNED_MODEL[type ?? ""] || null;
+    const model = used ?? bound.get(s.agentId)?.model ?? planned;
+    const modelPlanned = !used && !bound.get(s.agentId)?.model && Boolean(planned);
     const endedQuietly = !stop ? quietEnd.get(s.agentId) ?? null : null;
     const running = !stop && !endedQuietly && now - t0 < AGENT_RUNNING_MS;
     agents.push({
@@ -287,6 +307,9 @@ function buildAgents(events, now) {
       type,
       actor,
       task,
+      mission,
+      model,
+      modelPlanned,
       state: running ? "running" : "finished",
       since: s.ts,
       until: stop?.ts ?? endedQuietly,
@@ -627,27 +650,43 @@ export function buildState(inputs, now = new Date()) {
   // Milestones -> goals -> drafts. A task's `milestone` may be a milestone id or title.
   const matches = (m, ref) => ref !== null && (lower(m.id) === lower(ref) || lower(m.title) === lower(ref));
   const drafts = [...(inputs.drafts ?? [])].sort(byId);
-  const milestones = (inputs.milestones ?? []).map((m) => ({
-    id: m.id,
-    title: m.title,
-    description: m.description ?? "",
-    archived: !!m.archived,
-    goals: goalsList.filter((g) => matches(m, g.milestone)).map(goalView),
-    drafts: drafts.filter((d) => matches(m, d.milestone)).map((d) => ({ id: d.id, title: d.title })),
-  }));
+  // Tasks that are not GOALs and have no parent GOAL (debt, fixes): listed under their milestone.
+  const looseTasks = allTasks.filter((t) => !isGoal(t) && !t.parent && !t.archived);
+  const looseView = (t) => ({ id: t.id, title: t.title, status: t.status });
+  const withState = (m) => ({
+    ...m,
+    // Completed: it has GOALs and all of them are done; whatever else it holds is drafts and loose tasks.
+    completed: m.goals.length > 0 && m.goals.every((g) => DONE_STATUSES.has(lower(g.status))),
+  });
+  const milestones = (inputs.milestones ?? []).map((m) =>
+    withState({
+      id: m.id,
+      title: m.title,
+      description: m.description ?? "",
+      archived: !!m.archived,
+      goals: goalsList.filter((g) => matches(m, g.milestone)).map(goalView),
+      drafts: drafts.filter((d) => matches(m, d.milestone)).map((d) => ({ id: d.id, title: d.title })),
+      tasks: looseTasks.filter((t) => matches(m, t.milestone)).map(looseView),
+    }),
+  );
   const placedGoals = new Set(milestones.flatMap((m) => m.goals.map((g) => g.id)));
   const placedDrafts = new Set(milestones.flatMap((m) => m.drafts.map((d) => d.id)));
   const looseGoals = goalsList.filter((g) => !placedGoals.has(g.id));
   const looseDrafts = drafts.filter((d) => !placedDrafts.has(d.id));
-  if (looseGoals.length || looseDrafts.length) {
-    milestones.push({
-      id: null,
-      title: "No milestone",
-      description: "",
-      archived: false,
-      goals: looseGoals.map(goalView),
-      drafts: looseDrafts.map((d) => ({ id: d.id, title: d.title })),
-    });
+  const placedTasks = new Set(milestones.flatMap((m) => m.tasks.map((t) => t.id)));
+  const unplacedTasks = looseTasks.filter((t) => !placedTasks.has(t.id));
+  if (looseGoals.length || looseDrafts.length || unplacedTasks.length) {
+    milestones.push(
+      withState({
+        id: null,
+        title: "No milestone",
+        description: "",
+        archived: false,
+        goals: looseGoals.map(goalView),
+        drafts: looseDrafts.map((d) => ({ id: d.id, title: d.title })),
+        tasks: unplacedTasks.map(looseView),
+      }),
+    );
   }
 
   const tasks = allTasks
@@ -671,10 +710,18 @@ export function buildState(inputs, now = new Date()) {
     .filter((g) => lower(g.status) === "in progress" && !g.archived)
     .sort((a, b) => (ms(b.updatedAt) || 0) - (ms(a.updatedAt) || 0))[0];
   const activeView = active ? goalView(active) : null;
-  const decisions = inputs.decisions ?? [];
-  const ownerWaiting =
-    decisions.filter((d) => ["open", "proposed"].includes(lower(d.status))).length +
-    allTasks.filter((t) => lower(t.status) === "blocked" && !t.archived).length;
+  // Open decisions the work depends on (named by the active GOAL, its tasks or a blocked task) block it; the
+  // other open ones are questions that can wait.
+  const blockedTasks = allTasks.filter((t) => lower(t.status) === "blocked" && !t.archived);
+  const blockers = new Set(
+    [...(active ? [active] : []), ...allTasks.filter((t) => active && t.parent === active.id && !t.archived), ...blockedTasks].flatMap((t) => t.decisionRefs ?? []),
+  );
+  const decisions = (inputs.decisions ?? []).map((d) => {
+    const open = ["open", "proposed"].includes(lower(d.status));
+    return { ...d, open, blocking: open && blockers.has(lower(d.id)) };
+  });
+  const ownerWaiting = decisions.filter((d) => d.blocking).length + blockedTasks.length;
+  const ownerQuestions = decisions.filter((d) => d.open && !d.blocking).length;
 
   const tags = inputs.git?.tags ?? [];
   const lastCr = tags
@@ -698,11 +745,12 @@ export function buildState(inputs, now = new Date()) {
       context: snapshot(runtime.context, nowMs, (r) => ({ percent: r.percent ?? null })),
       usage: snapshot(runtime.usage, nowMs, (r) => ({ fiveHour: r.fiveHour ?? null, sevenDay: r.sevenDay ?? null, resetsAt: r.resetsAt ?? null })),
       ownerWaiting,
+      ownerQuestions,
     },
     milestones,
     tasks,
-    agents: buildAgents(events, nowMs),
-    decisions: decisions.map((d) => ({ id: d.id, title: d.title, status: d.status, date: d.date, path: d.path ?? null })),
+    agents: buildAgents(events, nowMs, tasksById),
+    decisions: decisions.map((d) => ({ id: d.id, title: d.title, status: d.status, date: d.date, path: d.path ?? null, blocking: d.blocking })),
     reports: inputs.reports ?? [],
     costs,
     events: events.slice(-50).reverse(),

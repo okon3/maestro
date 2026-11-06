@@ -1,6 +1,8 @@
 // PreToolUse in subagents: deny access to secret files (.env, keys, config secretPaths), and bind the agent id
 // to the actor and task of a `maestro claim` it runs (the dashboard needs it: parallel agents start in the same
 // millisecond, so time order cannot tell them apart). The main session is never blocked.
+import { closeSync, openSync, readSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { appendEvent } from "../lib/events.mjs";
 import { runHook } from "./_run.mjs";
 
@@ -57,11 +59,40 @@ function targets(toolName, toolInput = {}) {
   return out;
 }
 
+/**
+ * The model the subagent runs on: `message.model` of the last assistant line in the tail (64 KB) of its transcript
+ * `<session dir>/<sessionId>/subagents/agent-<agentId>.jsonl`. Null when it cannot be read: this is best effort.
+ */
+export function agentModel(input) {
+  try {
+    const tp = String(input.transcript_path ?? "");
+    const file = /[\\/]subagents[\\/]agent-/.test(tp)
+      ? tp
+      : join(dirname(tp), tp.replace(/^.*[\\/]/, "").replace(/\.jsonl$/, ""), "subagents", `agent-${input.agent_id}.jsonl`);
+    const size = statSync(file).size;
+    const len = Math.min(size, 65536);
+    const buf = Buffer.alloc(len);
+    const fd = openSync(file, "r");
+    try {
+      readSync(fd, buf, 0, len, size - len);
+    } finally {
+      closeSync(fd);
+    }
+    const found = [...buf.toString("utf8").matchAll(/"model":"([^"]+)"/g)].map((m) => m[1]).filter((m) => m.startsWith("claude-"));
+    return found.at(-1) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 await runHook(
   "secret-guard",
   ({ input, root, config }) => {
     const claim = typeof input.tool_input?.command === "string" ? CLAIM.exec(input.tool_input.command) : null;
-    if (claim) appendEvent(root, "agent.bind", { agentId: input.agent_id, actor: claim[2], task: claim[1].toUpperCase(), data: {} });
+    if (claim) {
+      const model = agentModel(input);
+      appendEvent(root, "agent.bind", { agentId: input.agent_id, actor: claim[2], task: claim[1].toUpperCase(), data: model ? { model } : {} });
+    }
     const globs = (Array.isArray(config.secretPaths) ? config.secretPaths : [])
       .filter((g) => typeof g === "string" && g.trim())
       .map(globRegex);
