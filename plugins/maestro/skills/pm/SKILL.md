@@ -51,7 +51,7 @@ New owner requests do not silently interrupt or extend the current work. Capture
 
 | Kind | Who decides |
 | --- | --- |
-| Local, reversible detail | The worker; noted in its report |
+| Local, reversible detail; minor (non-material) ambiguity | The worker; noted in its report, ambiguities logged as `decision.ruling` events |
 | Technical, within an approved direction | The architect, with an ADR in `docs/adr/` |
 | **Material**: new technologies or dependencies, database, cache, new architectural components, data formats, persistence, external services, security, costs, scope | **The owner**, through you |
 
@@ -62,7 +62,7 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
 1. Use the `maestro:start-goal` skill. It creates the goal branch, checks the GOAL fields, and launches the architect in the **foreground** with the brief.
 2. The architect returns in one of three states:
    - **integrated**: the GOAL is merged into the main branch;
-   - **blocked**: a material decision or an owner action is needed;
+   - **blocked**: a material decision or an owner action is needed, or a task was read two ways (intent gap: the owner picks a reading);
    - **failed**: with evidence.
 3. When blocked, ask the owner, record the decision, then resume **the same architect** with `SendMessage` to its agent id. It keeps its full history.
 4. After integration, run QA (`maestro:triage-qa` explains missions and triage) and, when due, the periodic review (`maestro:periodic-review`: every `reviewEveryTasks` integrated tasks or at GOAL end, whichever comes first). Findings become tasks for the architect.
@@ -77,7 +77,7 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
 
 ## 5. Limits that persist across agents and sessions
 
-- **Recovery:** at most **two recovery attempts** after the initial failure, per unresolved problem. Diagnose before retrying, and change something (context, instructions, method, scope, model or capability).
+- **Recovery:** at most **two recovery attempts** after the initial failure, per unresolved problem. Diagnose before retrying, and change something (context, instructions, method, scope, model or capability). The second attempt runs one model tier up (Sonnet -> Opus), never Fable, and the task notes record it.
 - **Critique:** at most **two critique and correction cycles** per result. Optional improvements never block closure.
 - **Counters** live in the task notes. Renaming, splitting or reassigning a task does not reset them.
 - **At a limit:** stop the affected work, checkpoint it, and bring the owner the evidence, the attempts made and the options.
