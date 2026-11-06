@@ -1,10 +1,10 @@
 ---
 id: TASK-3
 title: M-2 Minimal plugin
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T13:55:00Z'
-updated_date: '2026-11-06T14:04:00Z'
+updated_date: '2026-11-06T14:07:00Z'
 labels:
   - goal
 milestone: m-0
