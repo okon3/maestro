@@ -4,6 +4,7 @@ title: M-2 Minimal plugin
 status: To Do
 assignee: []
 created_date: '2026-11-06T13:55:00Z'
+updated_date: '2026-11-06T14:04:00Z'
 labels:
   - goal
 milestone: m-0
@@ -32,3 +33,9 @@ Outcome: a validated Maestro plugin, published in this repo's marketplace on Git
 - [ ] #7 Toy GOAL in a lab repo runs unattended from PM to integration, with events logged and guided compaction re-injecting the handoff
 - [ ] #8 Agriturismo installs the plugin from the GitHub marketplace; PLAN.md migrated (history archived, future GOALs in Backlog.md); AGENTS.md updated
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-06: owner authorized pushes to okon3/maestro and changes in Agriturismo to install the plugin and revise its configuration (decision-18).
+<!-- SECTION:NOTES:END -->

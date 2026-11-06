@@ -18,8 +18,8 @@ Maestro is a Claude Code plugin that runs an autonomous software team (PM, archi
 ## Authority
 
 - **Local commits** in this repository: allowed (standing, owner 2026-11-06). Make atomic commits with clear messages.
-- **Push** to `okon3/maestro` (which publishes the plugin): only on explicit owner request.
-- **Other repositories** (for example `E:\Projects\Agriturismo`): no changes unless the active GOAL authorizes them.
+- **Push** to `okon3/maestro`: allowed (standing, owner 2026-11-06). A push publishes the plugin, so push only validated states of `main`.
+- **Agriturismo** (`E:\Projects\Agriturismo`): the owner authorized installing the plugin and revising that project's configuration as appropriate (local commits; deploy only on explicit request). Other repositories: no changes unless the active GOAL authorizes them.
 - **Never:** deploy, change agents' permission modes, or delete `E:\Projects\maestro-lab\` without asking.
 - **Decisions:** follow decision-13 (governance and retry limits). Material choices go to the owner with 2–3 options and a recommendation.
 

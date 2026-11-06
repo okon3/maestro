@@ -18,7 +18,7 @@ Design and source of truth: `team-workflow/flusso-team-agenti.html`.
 - Works without Paseo; Paseo is optional.
 - Tracker: Backlog.md, a global prerequisite pinned to 1.55.3.
 - Models: Sonnet by default, Opus for hard tasks, never Fable.
-- Deploy and push only on explicit owner request.
+- In the projects it runs, deploy and push only on explicit owner request. This repository may be pushed (decision-18).
 - State lives in git so work can resume on any PC; runtime state stays out of git.
 - Measured, not guessed: the plugin records per-task cost and time (decision-17).
 
