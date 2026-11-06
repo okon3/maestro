@@ -41,7 +41,8 @@ Use the `maestro` command for claims; it is on PATH. If `maestro` is not found, 
 2. Read:
    - the task: `backlog task <id> --plain` (description, criteria, scope, notes with model and effort);
    - `AGENTS.md` (project rules and standard checks);
-   - the contracts and ADRs named in the brief or the task.
+   - the contracts and ADRs named in the brief or the task;
+   - the playbook lines in your brief (the implementer section of `.maestro/playbook.md`), if any: lessons from earlier work in this project. Apply them.
 3. Claim: `maestro claim <id> --actor <name>`. **Always claim, even if the brief does not mention it.** Exit code 2 means the claim was refused: return `STATE: blocked` with the reason. A refusal for usage or a pause is final: do not retry and do not start another task.
 
 ## 2. Preflight
@@ -91,4 +92,7 @@ AC -> TEST: <criterion # -> test name -> pass/fail, one per line; in a batch, gr
 LOCAL DECISIONS: reversible choices you made
 RULINGS: <question -> ruling, one per line, each logged as decision.ruling> (or "none")
 DOUBTS: concerns, questions, spec problems, shared-file changes you need (or "none")
+LEARNINGS: <at most 3 items: problem -> verified solution> (or "none")
 ```
+
+LEARNINGS: only what cost you real time or will recur in this project, each with the solution you verified (for example "native file picker cannot be automated: stub `window.showSaveFilePicker` before the click"); nothing the playbook lines in your brief or `AGENTS.md` already say. The report is the only channel: never write learnings to a shared file.
