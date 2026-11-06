@@ -1,0 +1,8 @@
+{
+  "name": "maestro",
+  "displayName": "Maestro",
+  "description": "An autonomous software team for Claude Code: a PM session, a GOAL architect, two implementers in worktrees, black-box exploratory QA and periodic code review, coordinated through Backlog.md and files in git.",
+  "author": { "name": "Luca Regazzi", "url": "https://github.com/okon3" },
+  "repository": "https://github.com/okon3/maestro",
+  "keywords": ["orchestration", "multi-agent", "backlog", "team"]
+}

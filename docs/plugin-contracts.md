@@ -5,9 +5,9 @@ Status: wave 1 contracts, owned by the M-2 architect. Change these only through 
 ## 1. Repository layout
 
 ```
-.claude-plugin/marketplace.json     marketplace "maestro" (owner okon3), one plugin, source ./plugins/maestro
+.claude-plugin/marketplace.json     marketplace "okon3", one plugin "maestro", source ./plugins/maestro (install id maestro@okon3)
 plugins/maestro/
-  .claude-plugin/plugin.json        name "maestro", semver version (bumped on every published change)
+  .claude-plugin/plugin.json        name "maestro", no version: the commit SHA is the version (docs/adr/0001)
   agents/                           architect.md, implementer.md, qa-explorer.md, code-reviewer.md
   skills/<name>/SKILL.md            pm, start-goal, pause, resume, triage-qa, periodic-review, decision, init
   hooks/hooks.json                  points to node scripts in scripts/hooks/
@@ -126,6 +126,8 @@ Exit code 0 on success, 1 on error, 2 on a refused operation (claim denied, fail
 | PreCompact | `pre-compact.mjs` | prints preservation instructions (state lives in files; keep IDs of running agents, open decisions, next action) |
 | SubagentStart / SubagentStop | `agent-events.mjs` | logs `agent.start` / `agent.stop` with usage from `agent_transcript_path` |
 | StopFailure | `stop-failure.mjs` | logs `limit.hit` |
+
+`hooks/hooks.json` wraps events in a top-level `"hooks"` key and uses the exec form so it works in Git Bash and PowerShell alike: `{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/<name>.mjs"],"timeout":30}`. Hook input arrives as JSON on stdin; output is one JSON object on stdout (`hookSpecificOutput.hookEventName` is required when `additionalContext` is used). Shape reference: `research/plugin-format-reference.md` section 4.
 
 Hooks must never block the session: catch every error, exit 0, and write diagnostics to `.maestro/runtime/hook-errors.log`. Only act when the project has `.maestro/config.json` (Maestro not initialized → no-op).
 
