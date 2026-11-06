@@ -559,7 +559,7 @@ export function md(src) {
   let list = null;
   let i = 0;
   const flushPara = () => {
-    if (para.length) out.push(`<p>${inline(para.join(" "))}</p>`);
+    if (para.length) out.push(`<p>${para.map(inline).join("<br>")}</p>`); // reports put one fact per line
     para = [];
   };
   const flushList = () => {
@@ -1021,9 +1021,11 @@ document.addEventListener("click", (ev) => {
 
 // Arrow keys move between tabs (WAI-ARIA tabs pattern).
 $("tabs").addEventListener("keydown", (ev) => {
-  if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(ev.key)) return;
+  ev.preventDefault();
   const i = TABS.findIndex((t) => t.id === ui.tab);
-  const next = TABS[(i + (ev.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length].id;
+  const step = { ArrowRight: i + 1, ArrowLeft: i + TABS.length - 1, Home: 0, End: TABS.length - 1 }[ev.key];
+  const next = TABS[step % TABS.length].id;
   go(next);
   $(`tab-${next}`)?.focus();
 });

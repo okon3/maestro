@@ -183,20 +183,38 @@ function buildAgents(events, now) {
     else if (e.type === "agent.stop") stops.set(e.agentId, e);
   }
   const claims = events.filter((e) => e.type === "task.claim" && e.task).map((e) => ({ e, t: Date.parse(e.ts), used: false }));
+  // Exact links first: task.measure lists the agent ids that worked on a task.
+  const measured = new Map();
+  for (const e of events) {
+    if (e.type !== "task.measure" || !e.task) continue;
+    for (const id of e.data?.agentIds ?? []) measured.set(id, normId(e.task));
+  }
+  const actorByTask = new Map(claims.map((c) => [normId(c.e.task), c.e.actor]));
   const agents = [];
   const ordered = [...starts.values()].sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
   for (const s of ordered) {
     const t0 = Date.parse(s.ts);
     const stop = stops.get(s.agentId) ?? null;
-    // Claim linking: the first unused claim that follows the start within 2 minutes (the claim names the actor).
-    const claim = claims.find((c) => !c.used && c.t >= t0 && c.t - t0 <= CLAIM_WINDOW_MS);
-    if (claim) claim.used = true;
+    const type = s.data?.agentType ?? null;
+    let task = measured.get(s.agentId) ?? null;
+    let actor = task ? actorByTask.get(task) ?? null : null;
+    if (!task && /implementer/.test(type ?? "")) {
+      // Running or unmeasured implementer: the first unused claim within 2 minutes of its start names actor and task.
+      const claim = claims.find((c) => !c.used && c.t >= t0 && c.t - t0 <= CLAIM_WINDOW_MS);
+      if (claim) {
+        claim.used = true;
+        task = normId(claim.e.task);
+        actor = claim.e.actor ?? null;
+      }
+    }
+    // Other roles (architect, QA, reviewer) are named after their agent type.
+    if (!actor && type) actor = type.replace(/^.*:/, "");
     const running = !stop && now - t0 < AGENT_RUNNING_MS;
     agents.push({
       agentId: s.agentId,
-      type: s.data?.agentType ?? null,
-      actor: claim?.e.actor ?? null,
-      task: claim ? normId(claim.e.task) : null,
+      type,
+      actor,
+      task,
       state: running ? "running" : "finished",
       since: s.ts,
       until: stop?.ts ?? null,

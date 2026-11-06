@@ -169,9 +169,30 @@ test("state_pairs_agents", () => {
   assert.deepEqual(s.agents.map((a) => a.agentId), ["a3", "a2", "a1", "old"]); // newest first
   assert.deepEqual(by.a1, { agentId: "a1", type: "maestro:implementer", actor: "impl-1", task: "TASK-1.1", state: "finished", since: "2026-11-06T14:00:00Z", until: "2026-11-06T14:10:00Z" });
   assert.deepEqual([by.a2.actor, by.a2.task, by.a2.state, by.a2.until], ["impl-2", "TASK-1.2", "running", null]);
-  assert.deepEqual([by.a3.actor, by.a3.task, by.a3.state], [null, null, "running"]);
+  // Non-implementer roles never take claims; they are named after their agent type.
+  assert.deepEqual([by.a3.actor, by.a3.task, by.a3.state], ["qa-explorer", null, "running"]);
+  assert.equal(by.old.actor, "architect");
   assert.equal(by.old.state, "finished"); // started more than 12 hours ago, never stopped
   assert.equal(by.old.until, null);
+});
+
+test("state_pairs_agents_prefers_measured_links", () => {
+  const s = buildState(
+    {
+      events: [
+        { ts: "2026-11-06T14:00:00Z", type: "agent.start", agentId: "arch", data: { agentType: "maestro:architect" } },
+        { ts: "2026-11-06T14:00:30Z", type: "agent.start", agentId: "i1", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T14:00:40Z", type: "task.claim", actor: "impl-1", task: "TASK-1.1" },
+        { ts: "2026-11-06T14:01:00Z", type: "agent.start", agentId: "i2", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T14:01:05Z", type: "task.claim", actor: "impl-2", task: "TASK-1.2" },
+        { ts: "2026-11-06T14:09:00Z", type: "task.measure", task: "TASK-1.2", data: { agentIds: ["i1"] } },
+      ],
+    },
+    new Date("2026-11-06T14:10:00Z"),
+  );
+  const by = Object.fromEntries(s.agents.map((a) => [a.agentId, a]));
+  assert.deepEqual([by.arch.actor, by.arch.task], ["architect", null]); // the architect never takes an implementer's claim
+  assert.deepEqual([by.i1.actor, by.i1.task], ["impl-2", "TASK-1.2"]); // task.measure wins over the time heuristic
 });
 
 test("state_counts_review", () => {
