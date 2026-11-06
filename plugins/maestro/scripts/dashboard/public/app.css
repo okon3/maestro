@@ -472,3 +472,19 @@ details > summary:hover { color: var(--ink); }
   .gauges { grid-template-columns: repeat(3, 1fr); row-gap: 14px; }
   .gauge:nth-child(4) { padding-left: 0; border-left: 0; }
 }
+
+/* M-6 8.11: waiting split, completed milestones, loose tasks, decision fields, model tags, event data */
+.g-owner .quiet-count { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.g-owner.lvl-owner .quiet-count { color: #5a4a48; }
+.group-hint { margin: -2px 0 6px; font-size: 12.5px; }
+.ms-head .badge.b-done { background: var(--sunk); color: var(--ink-2); margin-left: 8px; }
+.loose-tasks { margin-top: 10px; }
+.loose-head { font: 600 13px var(--f-num); color: var(--ink-2); margin: 0 0 4px; }
+.loose-list { list-style: none; margin: 0; padding: 0; }
+.loose-row { display: grid; grid-template-columns: 84px 1fr auto; gap: 10px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line-soft); font-size: 13.5px; }
+.dec-fields { margin-bottom: 10px; }
+.model-tag { display: inline-block; margin-left: 8px; padding: 0 7px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); font: 600 11.5px/18px var(--f-ui); white-space: nowrap; }
+.model-tag.is-planned { background: var(--sunk); color: var(--muted); font-weight: 500; }
+.ev-data { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.decision:not(.is-owner) .badge.d-open, .decision:not(.is-owner) .badge.d-proposed { background: var(--warn-bg); color: var(--warn); }
+.ms-head .badge.b-done { align-self: center; justify-self: start; flex: none; }
