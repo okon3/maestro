@@ -200,32 +200,47 @@ test("state_pairs_agents_prefers_measured_links", () => {
   assert.deepEqual([by.i1.actor, by.i1.task], ["impl-2", "TASK-1.2"]); // task.measure wins over the time heuristic
 });
 
-test("state_counts_review", () => {
+test("state_counts_review_from_last_review_done_event", () => {
   const status = (ts, to) => ({ ts, type: "task.status", task: "TASK-1.1", data: { from: "In Review", to } });
+  const done = (ts, review) => ({ ts, type: "review.done", data: { review, to: "abc1234" } });
   const events = [
     status("2026-11-06T10:00:00Z", "Integrated"),
+    done("2026-11-06T10:30:00Z", "CR-1"),
     status("2026-11-06T11:00:00Z", "Integrated"),
     status("2026-11-06T13:00:00Z", "In Review"), // not integrated
+    done("2026-11-06T14:00:00Z", "CR-2"),
     status("2026-11-06T15:00:00Z", "Integrated"),
     status("2026-11-06T16:00:00Z", "Integrated"),
     status("2026-11-06T16:30:00Z", "Done"),
   ];
+  // A newer cr/ tag must not override the event.
+  const tags = [{ name: "cr/CR-9", date: "2026-11-06T16:10:00.000Z" }];
+  const s = buildState({ events, git: { tags }, config: { reviewEveryTasks: 4 } }, NOW);
+  assert.deepEqual(s.header.review, { integratedSinceLast: 2, every: 4, lastReview: "CR-2" });
+  const none = buildState({ events: events.filter((e) => e.type !== "review.done"), git: { tags: [] } }, NOW);
+  assert.deepEqual(none.header.review, { integratedSinceLast: 4, every: 15, lastReview: null });
+});
+
+test("state_counts_review_falls_back_to_cr_tag", () => {
+  const status = (ts, to) => ({ ts, type: "task.status", task: "TASK-1.1", data: { from: "In Review", to } });
+  const events = [
+    status("2026-11-06T10:00:00Z", "Integrated"),
+    status("2026-11-06T15:00:00Z", "Integrated"),
+    status("2026-11-06T16:00:00Z", "Integrated"),
+  ];
   const tags = [
     { name: "cr/CR-1", date: "2026-11-05T00:00:00.000Z" },
     { name: "cr/CR-2", date: "2026-11-06T12:00:00.000Z" },
-    { name: "done/TASK-3", date: "2026-11-06T16:00:00.000Z" },
   ];
-  const after = buildState({ events, git: { tags }, config: { reviewEveryTasks: 4 } }, NOW);
-  assert.deepEqual(after.header.review, { integratedSinceLast: 2, every: 4, lastTag: "cr/CR-2" });
-  const none = buildState({ events, git: { tags: [] } }, NOW);
-  assert.deepEqual(none.header.review, { integratedSinceLast: 4, every: 15, lastTag: null });
+  const s = buildState({ events, git: { tags }, config: { reviewEveryTasks: 4 } }, NOW);
+  assert.deepEqual(s.header.review, { integratedSinceLast: 2, every: 4, lastReview: "CR-2" });
 
   // End to end: the tag date comes from git (the tag is on the commit made at 14:00; 13:00 event is before it, 15:00 after).
   const { dir } = tempProject();
-  const s = loadState(dir, { now: NOW });
-  assert.equal(s.header.review.lastTag, "cr/CR-1");
-  assert.equal(s.header.review.integratedSinceLast, 1);
-  assert.equal(s.git.tags.find((t) => t.name === "cr/CR-1").date, "2026-11-06T14:00:00.000Z");
+  const e2e = loadState(dir, { now: NOW });
+  assert.equal(e2e.header.review.lastReview, "CR-1");
+  assert.equal(e2e.header.review.integratedSinceLast, 1);
+  assert.equal(e2e.git.tags.find((t) => t.name === "cr/CR-1").date, "2026-11-06T14:00:00.000Z");
 });
 
 test("state_pairs_simultaneous_agents_by_binding", () => {
