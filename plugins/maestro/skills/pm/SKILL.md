@@ -72,8 +72,8 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
    1. Check whether the periodic review is due (`maestro:periodic-review` section 1).
    2. Run `maestro usage --check` once for these launches. At `lower` or above, launch nothing (section 6): tell the owner and wait for the reset.
    3. Prepare everything first: the QA snapshot, requirements and missions (`maestro:triage-qa` sections 1-2) and, when due, the review range and snapshot (`maestro:periodic-review` section 2, steps 1-4).
-   4. Launch all the QA missions and, when due, the code reviewer **in the same message**, in the foreground as both skills prescribe. They run in parallel, so you are busy for the longest of them, not for their sum. Tell the owner first that you will be back when they return.
-   5. Triage both (`maestro:triage-qa` section 4, `maestro:periodic-review` section 3), then close both (`maestro:triage-qa` section 5 steps 1-5, `maestro:periodic-review` section 4 steps 1-3) and commit everything together on the main branch.
+   4. Launch all the QA missions and, when due, the code reviewer **in the same message**, with `run_in_background: true`, as both skills prescribe. They run in parallel. End your turn telling the owner they are running: you stay available, and each completion notification comes back to you.
+   5. As each report arrives, triage it; when all are in, triage both (`maestro:triage-qa` section 4, `maestro:periodic-review` section 3), then close both (`maestro:triage-qa` section 5 steps 1-5, `maestro:periodic-review` section 4 steps 1-3) and commit everything together on the main branch.
    6. If there are valid findings (QA defects, review violations, review debt placed in this GOAL), run `maestro usage --check` and resume the architect **once** with `SendMessage` to its agent id: one fix wave with every task id, its source (`qa:` or `review:` reference), its priority and any frozen area. If its agent id is no longer resumable (after a pause or in a new session), launch a fresh architect as in `maestro:start-goal` step 5, with `Fix wave: <task ids>` in the brief. Never forward findings to an architect while it is fixing: what turns up later waits for the next wave.
    7. When the fix wave returns integrated, run a re-verification QA (`maestro:triage-qa`, on a new snapshot): one short mission per fixed defect. New defects go through steps 5-7 again. The critique limit (section 5) applies to this loop.
 5. Close the GOAL, on the main branch (your checkout is already there):
@@ -146,7 +146,7 @@ Nothing else deletes branches, so you clean up at two moments: when you close a 
 
 ## 10. Fast lane for a small fix
 
-A small fix does not need a GOAL and an architect (decision-19): with the owner's approval, you launch one implementer yourself, review its work and integrate it on the main branch. Anything bigger goes through a GOAL.
+A small fix does not need a GOAL and an architect (decision-19): with the owner's approval, you launch one implementer yourself (in the background, like the architect in `maestro:start-goal`), review its work and integrate it on the main branch. Anything bigger goes through a GOAL.
 
 **It qualifies only if all of these hold:**
 

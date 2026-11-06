@@ -25,7 +25,7 @@ If it is not due and the owner did not ask, stop here.
 2. Choose the range: `<from>` = the `to` of the last `review.done` event (the newest legacy `cr/CR-*` tag if there is no event); for the first review, the main-branch commit just before the first GOAL integrated with Maestro. `<to>` = `git rev-parse --short <mainBranch>`. No tags (decision-21): the shas are the names.
 3. Give the reviewer a snapshot, not the main checkout: `maestro worktree cr-CR-<n> --detach <to>` (a detached worktree with the project's `worktreeSetup`, so the reviewer can run the checks without installing dependencies). The reviewer works only there and cannot edit (no Edit tool).
 4. Log: `maestro event review.start --goal <GOAL id> --actor pm --data '{"review":"CR-<n>","from":"<from>","to":"<to>"}'`.
-5. Launch a **fresh** Agent with `subagent_type: "maestro:code-reviewer"`, in the foreground. Never reuse an earlier reviewer. At GOAL end, launch it in the same message as the QA missions, so they run in parallel (PM skill section 4, step 4). Brief:
+5. Launch a **fresh** Agent with `subagent_type: "maestro:code-reviewer"` and `run_in_background: true`; its completion notification comes back to you. Never reuse an earlier reviewer. At GOAL end, launch it in the same message as the QA missions, so they run in parallel (PM skill section 4, step 4). Brief:
 
 ```
 Review: CR-<n>

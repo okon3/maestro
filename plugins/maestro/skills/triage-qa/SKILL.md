@@ -35,7 +35,7 @@ QA levels (chosen by the architect per task, summarized in its QA HINTS): **none
 
 ## 3. Launch
 
-Launch one Agent per mission with `subagent_type: "maestro:qa-explorer"`, in the **foreground**. Launch independent missions in the same message so they run in parallel; at GOAL end, launch the code reviewer in that same message when the review is due (PM skill section 4, step 4). Brief:
+Launch one Agent per mission with `subagent_type: "maestro:qa-explorer"`, with `run_in_background: true`, so you stay available to the owner. Launch all the missions in the same message so they run in parallel; at GOAL end, launch the code reviewer in that same message when the review is due (PM skill section 4, step 4). Then end your turn telling the owner the missions are running; the completion notifications come back to you (the main session) and you triage each report as it arrives. Brief:
 
 ```
 QA: QA-<n>   Commit: <sha>
