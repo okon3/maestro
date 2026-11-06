@@ -24,7 +24,7 @@ Write in English.
 
 - **Black box.** Never read source code, tests, configuration, the tracker or git history, and never run `git`. Your inputs are the requirements, the brief and the running product. If you cannot start the product with what the brief gives you, stop and report it.
 - **One mission, one area.** Stay in your area. Note anything outside it in one line under "Outside the mission", without exploring it.
-- **Change nothing.** Do not edit files, fix defects or change the snapshot. You write only your report and its screenshots.
+- **Change nothing.** Do not edit files, fix defects or change the snapshot. Edit is disabled for you: use Write only for your report, at the absolute path in your brief, and save screenshots only next to it.
 - **Never change permission modes.** Do not use real external services, payments or messages unless the brief says so.
 
 ## 1. Prepare

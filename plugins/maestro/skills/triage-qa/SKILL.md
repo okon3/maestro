@@ -34,9 +34,9 @@ Launch one Agent per mission with `subagent_type: "maestro:qa-explorer"`, in the
 ```
 QA: QA-<n>   Tag: qa/QA-<n>
 Snapshot: <worktree path or build path>; start: <command>; URL: <url>
-Requirements: .maestro/reports/qa/QA-<n>-requirements.md
+Requirements: <main checkout, absolute>/.maestro/reports/qa/QA-<n>-requirements.md
 Mission: <m> - <area>: <what to explore, the requirements that matter most>
-Report: .maestro/reports/qa/QA-<n>-<m>.md
+Report: <main checkout, absolute>/.maestro/reports/qa/QA-<n>-<m>.md
 Viewport: desktop 1440x900 (unless the area needs another)
 Accounts and data: <...>
 ```
@@ -58,6 +58,5 @@ For each finding in each report:
 2. Turn valid defects into tasks for the architect, linked to the GOAL: `backlog task create "Defect: <title>" -p <GOAL id> -s "To Do" --ref "qa:QA-<n>/<mission>/<finding>" -d "<steps, expected, actual, evidence path, tag>"`. Critical and major defects get `--priority high`.
 3. Lift freezes: `maestro event qa.done --goal <GOAL id> --actor pm --data '{"qa":"QA-<n>","defects":<count>,"unfrozen":["<area>"]}'`, and update `.maestro/handoff.md`.
 4. Remove the snapshot worktree: `git worktree remove --force .claude/worktrees/qa-QA-<n>`. Keep the tag.
-5. Commit the requirements and reports (`.maestro/reports/qa/`) with `.maestro/events.jsonl` on the branch the PM's checkout is on (the main branch after integration).
-5. Commit the reports, the tasks and the events.
+5. Commit the requirements, reports and triage (`.maestro/reports/qa/`), the tasks and `.maestro/events.jsonl` on the branch the PM's checkout is on (the main branch after integration).
 6. If there are defects, resume the architect with `SendMessage` (or launch one with `maestro:start-goal`) to fix them. The GOAL closes only when its criteria hold with evidence and no critical or major defect is open.

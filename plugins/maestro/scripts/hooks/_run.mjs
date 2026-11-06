@@ -1,5 +1,6 @@
 // Shared hook runner: never blocks the session, never exits non-zero.
-// A hook module calls runHook(name, handler); handler({input, root, config}) may return a string or object to print.
+// A hook module calls runHook(name, handler[, {when}]); handler({input, root, config}) may return a string or object to print.
+// `when(input)` is an optional cheap filter checked before the config lookup (which spawns git): false -> no-op.
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../lib/config.mjs";
@@ -21,11 +22,12 @@ function logError(root, name, err) {
   }
 }
 
-export async function runHook(name, handler) {
+export async function runHook(name, handler, { when } = {}) {
   let root = null;
   try {
     const raw = await readStdin();
     const input = raw.trim() ? JSON.parse(raw) : {};
+    if (when && !when(input)) return;
     const loaded = loadConfig(input.cwd || process.cwd());
     root = loaded.root;
     if (!loaded.initialized) return;

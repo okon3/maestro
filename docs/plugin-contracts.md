@@ -36,7 +36,7 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
 | `.maestro/reports/<kind>/<id>.md` | yes | `task/<task-id>.md` (implementer report, saved by the architect at integration), `qa/QA-n*.md` (PM requirements and QA reports), `review/CR-n.md` (reviewer) |
 | `.maestro/runtime/` | no | usage cache, hook band state, misc runtime |
 | `<git-common-dir>/maestro-locks/<task-id>/` | no | claim locks, shared by all worktrees |
-| `.claude/worktrees/<name>/` | no | implementer worktrees |
+| `.claude/worktrees/<name>/` | no | implementer worktrees (`impl-n`); detached QA and review snapshots (`qa-QA-n`, `cr-CR-n`) |
 | `backlog/` | yes | Backlog.md tracker |
 | `docs/adr/` | yes | architecture decision records |
 
@@ -56,7 +56,7 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
 }
 ```
 
-All keys are optional; `lib/config.mjs` merges the file over these defaults. The project root is the git top level of the main worktree (`git rev-parse --path-format=absolute --git-common-dir`, parent dir), so commands run from a worktree read and write the main checkout's `.maestro/`.
+All keys are optional; `lib/config.mjs` merges the file over these defaults. Optional `secretPaths` (array of globs, default `[]`) lists extra project files that subagents must not touch (section 7, `secret-guard.mjs`); a missing or invalid value counts as `[]`. The project root is the git top level of the main worktree (`git rev-parse --path-format=absolute --git-common-dir`, parent dir), so commands run from a worktree read and write the main checkout's `.maestro/`.
 
 ## 4. Event log: `.maestro/events.jsonl`
 
@@ -82,6 +82,7 @@ Event types (wave 1):
 | `context.band` | context hook, once per band crossing | `{percent, band}` |
 | `goal.start`, `session.pause`, `session.resume`, `maestro.init` | PM skills, through `maestro event` | free-form |
 | `qa.start`, `qa.freeze`, `qa.done`, `review.start`, `review.done`, `decision.recorded` | PM skills, through `maestro event` | free-form |
+| `decision.ruling` | an implementer or the architect, through `maestro event ... --task <id> --actor <name>`, when it settles a minor (non-material) ambiguity itself | `{question, ruling}` |
 
 ## 5. Usage record (measurement, decision-17)
 
@@ -124,6 +125,7 @@ Exit code 0 on success, 1 on error, 2 on a refused operation (claim denied, fail
 
 | Event | Script | Behaviour |
 | --- | --- | --- |
+| PreToolUse (`Read\|Edit\|Write\|NotebookEdit\|Grep\|Glob\|Bash\|PowerShell`) | `secret-guard.mjs` | subagents only (`agent_id` set; the main session is never blocked): denies with `hookSpecificOutput.permissionDecision: "deny"` and a reason when a target names a secret. Targets: `file_path`, `notebook_path`, `path`, `glob`, Glob's `pattern` (Grep's `pattern` is a content regex, not a path) and every word of a Bash/PowerShell `command`. Secret: file name `.env`, `.env.*` except `.env.example`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*` (case-insensitive), or a path matching a config `secretPaths` glob (`**` spans directories; the glob may match any trailing part of the path, and a matched directory covers its contents). The matcher lists the tools that take a path or a command, instead of `*`, so other tools pay no node start-up. Fails open: an error logs and allows. |
 | SessionStart (startup, resume, clear, compact) | `session-start.mjs` | injects one line saying the session is the Maestro PM (plus a pointer to the handoff on startup); on `compact`/`clear`/`resume` injects `.maestro/handoff.md` (max 9,000 chars) as `additionalContext` |
 | UserPromptSubmit, PostToolUse | `context-watch.mjs` | main session only (skip when `agent_id` set); computes context %; on first crossing of each band per session injects one warning with the action to take; logs `context.band` |
 | PreCompact | `pre-compact.mjs` | prints preservation instructions (state lives in files; keep IDs of running agents, open decisions, next action) |
@@ -132,7 +134,7 @@ Exit code 0 on success, 1 on error, 2 on a refused operation (claim denied, fail
 
 `hooks/hooks.json` wraps events in a top-level `"hooks"` key and uses the exec form so it works in Git Bash and PowerShell alike: `{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/<name>.mjs"],"timeout":30}`. Hook input arrives as JSON on stdin; output is one JSON object on stdout (`hookSpecificOutput.hookEventName` is required when `additionalContext` is used). Shape reference: `research/plugin-format-reference.md` section 4.
 
-Hooks must never block the session: catch every error, exit 0, and write diagnostics to `.maestro/runtime/hook-errors.log`. Only act when the project has `.maestro/config.json` (Maestro not initialized → no-op).
+Hooks must never block the session (the secret guard's deny is a JSON decision on one tool call, not an error): catch every error, exit 0, and write diagnostics to `.maestro/runtime/hook-errors.log`. Only act when the project has `.maestro/config.json` (Maestro not initialized → no-op).
 
 ## 8. Tests
 
