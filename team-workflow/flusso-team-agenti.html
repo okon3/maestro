@@ -122,6 +122,7 @@
 <tr><td>Prerequisiti sul PC</td><td>Claude Code, Git, Node e Backlog.md 1.55.3 installato globalmente.</td></tr>
 </table>
 <p class="r">Pubblicare una versione significa fare push su <code>okon3/maestro</code>: lo autorizza l'owner. Durante lo sviluppo il plugin si prova in locale (<code>--plugin-dir</code>) senza pubblicarlo.</p>
+<p class="r">Aggiornamento a sessione aperta: Claude Code carica skill, agenti e comandi del plugin all'avvio della sessione, quindi una versione installata dopo non vale finché l'owner non esegue <code>/reload-plugins</code> (un comando dell'owner: gli agenti non possono eseguirlo) o riavvia. <code>maestro doctor</code> lo segnala: confronta la versione in uso con quella installata e, se differiscono, elenca i file di skill e agenti cambiati fra le due.</p>
 <p class="r">Il codice del framework si aggiorna in un solo posto. I progetti contengono solo dati e regole specifiche, cioè il proprio <code>AGENTS.md</code>.</p>
 <p class="r">Una sola fonte di verità: le regole del progetto non ripetono quelle di Maestro. <code>/maestro:init</code>, sia all'adozione sia quando aggiorna il blocco dopo un aggiornamento del plugin, confronta le regole del progetto (<code>AGENTS.md</code>, <code>CLAUDE.md</code> e i file che importano) con quelle di Maestro e le divide in tre gruppi: <b>doppioni</b> (Maestro dice già la stessa cosa: si tolgono, con un solo via libera dell'owner sull'elenco), <b>conflitti</b> (dicono cose diverse: l'owner sceglie quale regola resta, una per una, con una raccomandazione) e <b>regole del progetto</b> (restano).</p>
 </section>
@@ -158,6 +159,7 @@ flowchart TB
   <li><b>All'avvio del GOAL:</b> l'architetto legge il <code>master</code> di quel momento e dettaglia <b>solo la prima ondata</b>: i contratti condivisi, più i task che si possono svolgere in parallelo.</li>
   <li><b>Ondate successive:</b> le dettaglia quando la precedente è integrata nel ramo del GOAL, partendo da codice vero.</li>
   <li><b>Specifiche per simboli:</b> moduli, funzioni, tipi e contratti, mai numeri di riga.</li>
+  <li><b>Ambito completo:</b> se un task cambia le proprietà di un componente o la firma di una funzione, nell'ambito entrano anche chi la chiama e chi compone il componente. Per allargare l'ambito l'architetto aggiunge riferimenti (<code>--add-ref</code>), mai <code>--ref</code>, che li sostituisce tutti.</li>
   <li><b>Controllo iniziale dell'implementatore:</b> verifica che ciò che è citato esista ancora così. Se non è così, il task torna all'architetto prima che parta del lavoro su una base superata.</li>
 </ol>
 </section>
@@ -180,7 +182,7 @@ stateDiagram-v2
   Blocked --> ToDo: decisione presa
   Done --> archived: PM archivia a GOAL chiuso
 </div>
-<p class="r">Stati configurati in Backlog.md: <code>To Do, Ready, In Progress, Blocked, In Review, Integrated, Done</code>. I GOAL sono task con etichetta <code>goal</code> dentro una milestone; un GOAL non ancora approvato porta anche l'etichetta <code>proposed</code>.</p>
+<p class="r">Stati configurati in Backlog.md: <code>To Do, Ready, In Progress, Blocked, In Review, Integrated, Done</code>. I GOAL sono task con etichetta <code>goal</code> dentro una milestone; un GOAL non ancora approvato porta anche l'etichetta <code>proposed</code>. <code>maestro status</code> prende il GOAL attivo dal tracker (il GOAL in stato <code>In Progress</code>, non l'ultimo evento che nomina un GOAL) ed elenca a parte i GOAL proposti, «in attesa di approvazione».</p>
 </section>
 
 <section id="file">
@@ -190,9 +192,9 @@ stateDiagram-v2
 <tr><td><code>PLAN.md</code></td><td>Visione, vincoli, roadmap per milestone, indice dei GOAL e delle decisioni. Breve: il dettaglio sta nel tracker.</td><td>sì</td></tr>
 <tr><td><code>backlog/</code> (Backlog.md)</td><td>GOAL e task, un file ciascuno, con criteri come checklist, dipendenze, stato, assegnatario, ambito di file, evidenze; <code>backlog/decisions/</code>; <code>backlog/archive/</code> per i chiusi.</td><td>sì</td></tr>
 <tr><td><code>docs/adr/</code></td><td>Decisioni architetturali.</td><td>sì</td></tr>
-<tr><td><code>.maestro/reports/</code></td><td>Rapporti di implementazione, revisione, QA e code review, con il tag di riferimento.</td><td>sì</td></tr>
+<tr><td><code>.maestro/reports/</code></td><td>Rapporti di implementazione, revisione, QA e code review, con il tag di riferimento. Il rapporto di ogni task (<code>task/&lt;id&gt;.md</code>) lo salva <code>maestro measure</code> all'integrazione, dal messaggio finale dell'implementatore nel suo registro: l'architetto non lo copia più a mano. Un rapporto esistente non si sovrascrive: un nuovo giro di correzione si aggiunge come sezione.</td><td>sì</td></tr>
 <tr><td><code>.maestro/handoff.md</code></td><td>Punto della situazione del PM: cosa è in corso, cosa aspetta l'owner, prossima azione. Lo riscrive solo il PM, alla pausa e al cambio turno.</td><td>sì</td></tr>
-<tr><td><code>.maestro/events.jsonl</code></td><td>Registro degli eventi a sola aggiunta, con unione automatica nei merge (<code>merge=union</code>). Contiene anche i record di misura per task (sezione 14).</td><td>sì, alla pausa</td></tr>
+<tr><td><code>.maestro/events.jsonl</code></td><td>Registro degli eventi a sola aggiunta, con unione automatica nei merge (<code>merge=union</code>). Contiene anche i record di misura per task (sezione 14). Il vocabolario dei tipi di evento è in <code>docs/plugin-contracts.md</code>: <code>maestro event</code> avvisa (senza rifiutare) per un tipo sconosciuto.</td><td>sì, alla pausa</td></tr>
 <tr><td><code>.maestro/runtime/</code></td><td>Blocchi, presa in carico dei task, battiti, cache di consumo e contesto.</td><td>no</td></tr>
 <tr><td><code>.claude/worktrees/</code></td><td>Worktree degli implementatori e fotografie staccate per QA e code review.</td><td>no</td></tr>
 </table>
@@ -204,6 +206,7 @@ stateDiagram-v2
   <li><code>maestro init</code> propone <code>link: ["node_modules"]</code> quando il progetto ha <code>node_modules</code> o un lockfile di Node: una riga da approvare come le altre.</li>
   <li><b>Rimozione sicura:</b> <code>maestro worktree &lt;nome&gt; --remove</code> stacca prima i collegamenti senza seguirli, poi esegue <code>git worktree remove</code>: non si cancella mai attraverso una junction, e i pacchetti del checkout principale restano intatti. Su Windows, se un processo tiene la cartella (un server di anteprima rimasto acceso, un terminale), rifiuta prima di cancellare qualunque cosa e dice la causa probabile; anche gli altri errori di git arrivano con una spiegazione.</li>
 </ul>
+<p><b>Primo uso senza inciampi.</b> <code>maestro init</code> crea subito <code>.maestro/events.jsonl</code> vuoto e la cartella <code>.maestro/reports/</code>, e aggiunge a <code>.gitattributes</code> le regole di fine riga LF per <code>backlog/**</code> e <code>.maestro/**</code> (<code>text=auto eol=lf</code>), così su Windows i commit del tracker e degli eventi non stampano più avvisi LF/CRLF. Sono righe da approvare come le altre, e una seconda esecuzione non cambia nulla.</p>
 <p><b>Storia senza disordine:</b> a GOAL chiuso il PM archivia GOAL e task in un solo commit e lascia in <code>PLAN.md</code> una riga di storico con il link. Nulla si cancella: l'archivio e Git conservano tutto.</p>
 </section>
 
@@ -254,7 +257,7 @@ sequenceDiagram
 <h2>9. Qualità: QA, code review e test</h2>
 <ul>
   <li><b>Contro il bias dei test scritti da chi implementa:</b> l'architetto scrive i criteri come casi concreti (dato / quando / allora), ognuno legato a un test con nome. L'implementatore scrive i test e il codice; l'architetto rivede <b>prima i test</b>, poi il codice. La code review controlla anche la qualità dei test e il QA resta la rete finale indipendente. Un <b>autore dei test</b> separato è rinviato: si valuta dopo il pilota, guardando i costi.</li>
-  <li><b>QA:</b> livelli <code>none</code>, <code>self-smoke</code> (l'implementatore apre la pagina), <code>checkpoint</code> (a fine GOAL o prima di un deploy) e <code>dedicated</code> (aree critiche). Missioni brevi e mirate: il pilota sulla 7B ha mostrato che una missione unica e ampia copre poco.</li>
+  <li><b>QA:</b> livelli <code>none</code>, <code>self-smoke</code> (l'implementatore apre la pagina), <code>checkpoint</code> (a fine GOAL o prima di un deploy) e <code>dedicated</code> (aree critiche). Missioni brevi e mirate: il pilota sulla 7B ha mostrato che una missione unica e ampia copre poco. Il file del rapporto è il prodotto della missione: l'esploratore lo scrive sempre, al percorso del brief, anche se le istruzioni generali sconsigliano di creare file Markdown; prima del triage il PM controlla che ogni file esista e, se manca, lo scrive dal messaggio finale dell'esploratore e lo annota.</li>
   <li><b>Code review periodica:</b> ogni 15 task o a fine GOAL. Rilievi in tre gradi: <i>violazione</i> (task prioritario), <i>debito</i> (in coda), <i>suggerimento</i> (annotato). Non blocca il lavoro in corso.</li>
 </ul>
 </section>
@@ -341,7 +344,8 @@ sequenceDiagram
 <section id="misura">
 <h2>14. Misura dei risultati (opzione B)</h2>
 <ul>
-  <li><b>Record per task</b>, scritto nel registro eventi: token per modello (con cache letta e scritta), tempo dall'avvio all'integrazione, interventi dell'owner, cicli di correzione e difetti trovati dopo l'integrazione. Le fonti ci sono già: registri dei subagent e uso per modello delle esecuzioni.</li>
+  <li><b>Record per task</b>, scritto nel registro eventi: token per modello (con cache letta e scritta), tempo dall'avvio all'integrazione, interventi dell'owner, cicli di correzione e difetti trovati dopo l'integrazione. Le fonti ci sono già: registri dei subagent e uso per modello delle esecuzioni. <code>maestro measure</code> scrive il record e, dallo stesso registro, il rapporto del task.</li>
+  <li><b>Gruppi di task:</b> quando un implementatore fa più task piccoli insieme, <code>maestro measure TASK-a,TASK-b --agent-id &lt;id&gt;</code> scrive un record per task con gli stessi agenti e l'elenco del gruppo (<code>batch</code>), e un rapporto per task; la dashboard divide il consumo dell'agente in parti uguali fra i task del gruppo, così nulla si conta due volte.</li>
   <li><b>Confronto del pilota:</b> la 7C fatta con Maestro contro la 7B fatta con le regole vecchie, sugli stessi indicatori.</li>
   <li><b>Più avanti:</b> un harness di valutazione ripetibile (GOAL M-5, proposto), che parte dalle ricerche in <code>archive/wayfinder/research/</code>.</li>
 </ul>

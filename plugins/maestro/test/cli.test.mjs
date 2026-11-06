@@ -29,6 +29,8 @@ function setup({ tasks = {}, version = "1.55.3", config } = {}) {
     MAESTRO_BACKLOG_ARGS: JSON.stringify([FAKE]),
     FAKE_BACKLOG_STATE: state,
     MAESTRO_TEST_CONTEXT_MODULE: STUB,
+    // Never read the real ~/.claude (doctor compares plugin versions there).
+    CLAUDE_CONFIG_DIR: join(dir, "claude-home"),
     // Claims probe usage when no fresh sample exists: never call the real claude. Without FAKE_CLAUDE_USAGE the
     // fake prints nothing, so usage is unknown and claims are not gated.
     MAESTRO_CLAUDE_BIN: process.execPath,
@@ -355,4 +357,202 @@ test("status_reports_interruption_and_pause", () => {
   const s = JSON.parse(run(["status", "--json"]).stdout);
   assert.equal(s.interrupted.count, 2);
   assert.equal(s.pause.reason, "limit");
+});
+
+// ---------------------------------------------------------------------------------------------
+// Task reports, batches, status GOALs, event vocabulary and plugin version (M-6 tasks 8.8 and 8.10).
+
+const REAL_CONTEXT = { MAESTRO_TEST_CONTEXT_MODULE: "" }; // the real lib/context.mjs reads the JSONL fixtures
+
+/** A subagent transcript (JSONL) whose last answer is `report`, given as text blocks or through SubagentHandback. */
+function writeAgentTranscript(dir, agentId, report, { handback = false, model = "claude-sonnet-5-5", start = "2026-11-06T10:00:00.000Z", end = "2026-11-06T10:12:03.000Z" } = {}) {
+  const sub = join(dir, "sess", "subagents");
+  mkdirSync(sub, { recursive: true });
+  const usage = { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+  const line = (id, ts, content) => ({ type: "assistant", isSidechain: true, agentId, timestamp: ts, message: { id, model, role: "assistant", usage, content } });
+  const lines = [
+    { type: "user", timestamp: start, message: { role: "user", content: "brief" } },
+    line("m1", start, [{ type: "text", text: "Claiming the task.\nSTATE: not a report, an early mention" }]),
+    line("m1", start, [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "maestro claim" } }]),
+    handback
+      ? line("m2", end, [{ type: "tool_use", id: "t2", name: "SubagentHandback", input: { message: report } }])
+      : line("m2", end, [{ type: "text", text: `Here is my report.\n\n\`\`\`\n${report}\n\`\`\`` }]),
+  ];
+  writeFileSync(join(sub, `agent-${agentId}.jsonl`), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+  return join(dir, "sess.jsonl");
+}
+
+const REPORT = "STATE: done\nTASK: TASK-3.2   BRANCH: impl-1\nSUMMARY: added the thing\nDOUBTS: none";
+const reportFile = (dir, id) => join(dir, ".maestro", "reports", "task", `${id}.md`);
+
+test("measure_writes_task_report_from_transcript", () => {
+  const { dir, run } = setup({ tasks: { "TASK-3.2": { title: "Add the thing", status: "In Review", assignees: [] } } });
+  const session = writeAgentTranscript(dir, "a1", REPORT);
+  const r = run(["measure", "TASK-3.2", "--agent-id", "a1", "--transcript", session, "--goal", "TASK-3", "--actor", "architect"], dir, REAL_CONTEXT);
+  assert.equal(r.status, 0, r.stderr);
+  const text = readFileSync(reportFile(dir, "TASK-3.2"), "utf8");
+  assert.match(text, /^# TASK-3\.2 Add the thing\n\n/, "heading with the task title (the dashboard lists it)");
+  assert.match(text, /Task: TASK-3\.2   Agents: a1   Model: claude-sonnet-5-5   Wall time: 12m 03s   Date: \d{4}-\d{2}-\d{2}\n/);
+  assert.ok(text.includes(`\n\n${REPORT}\n`), "report body from the STATE line on");
+  assert.ok(!text.includes("Here is my report") && !text.includes("```") && !text.includes("early mention"), "only the final report block");
+  assert.match(r.stdout, /report created: .*TASK-3\.2\.md/);
+  // A report delivered through SubagentHandback is found too.
+  const other = setup();
+  const s2 = writeAgentTranscript(other.dir, "b1", REPORT, { handback: true });
+  assert.equal(other.run(["measure", "TASK-4", "--agent-id", "b1", "--transcript", s2], other.dir, REAL_CONTEXT).status, 0);
+  const handed = readFileSync(reportFile(other.dir, "TASK-4"), "utf8");
+  assert.ok(handed.includes(REPORT));
+  assert.match(handed, /^# TASK-4 implementer report\n/, "unknown task: generic heading");
+  // --no-report measures only.
+  const none = setup();
+  const s3 = writeAgentTranscript(none.dir, "c1", REPORT);
+  assert.equal(none.run(["measure", "TASK-5", "--agent-id", "c1", "--transcript", s3, "--no-report"], none.dir, REAL_CONTEXT).status, 0);
+  assert.equal(existsSync(reportFile(none.dir, "TASK-5")), false);
+});
+
+test("measure_batch_writes_one_event_and_report_per_task", () => {
+  const { dir, run } = setup();
+  const session = writeAgentTranscript(dir, "a1", REPORT);
+  const r = run(["measure", "TASK-3.2,task-3.3", "--agent-id", "a1", "--transcript", session, "--goal", "TASK-3", "--json"], dir, REAL_CONTEXT);
+  assert.equal(r.status, 0, r.stderr);
+  const measures = readEvents(dir).filter((e) => e.type === "task.measure");
+  assert.deepEqual(measures.map((e) => e.task), ["TASK-3.2", "TASK-3.3"]);
+  for (const e of measures) {
+    assert.deepEqual(e.data.agentIds, ["a1"]);
+    assert.deepEqual(e.data.batch, ["TASK-3.2", "TASK-3.3"]);
+    assert.equal(e.goal, "TASK-3");
+  }
+  assert.deepEqual(measures[0].data.usage, measures[1].data.usage, "the same shared usage");
+  for (const id of ["TASK-3.2", "TASK-3.3"]) {
+    const text = readFileSync(reportFile(dir, id), "utf8");
+    assert.match(text, new RegExp(`Task: ${id.replace(".", "\\.")}   Batch: TASK-3\\.2, TASK-3\\.3`));
+    assert.ok(text.includes(REPORT));
+  }
+  assert.equal(JSON.parse(r.stdout).reports.length, 2);
+  // A single task carries no batch field.
+  const single = setup();
+  const s = writeAgentTranscript(single.dir, "a1", REPORT);
+  single.run(["measure", "TASK-1", "--agent-id", "a1", "--transcript", s], single.dir, REAL_CONTEXT);
+  assert.equal(readEvents(single.dir).find((e) => e.type === "task.measure").data.batch, undefined);
+});
+
+test("measure_does_not_overwrite_report_without_force", () => {
+  const { dir, run } = setup();
+  mkdirSync(join(dir, ".maestro", "reports", "task"), { recursive: true });
+  writeFileSync(reportFile(dir, "TASK-3.2"), "# TASK-3.2 implementer report\n\nSTATE: done\nfirst round by hand\n");
+  const session = writeAgentTranscript(dir, "a2", "STATE: done\nSUMMARY: rework of the first round");
+  const measure = (...extra) => run(["measure", "TASK-3.2", "--agent-id", "a2", "--transcript", session, ...extra], dir, REAL_CONTEXT);
+  assert.equal(measure().status, 0);
+  let text = readFileSync(reportFile(dir, "TASK-3.2"), "utf8");
+  assert.ok(text.startsWith("# TASK-3.2 implementer report\n\nSTATE: done\nfirst round by hand\n"), "first round kept");
+  assert.match(text, /\n## Round 2 \(\d{4}-\d{2}-\d{2}\)\n\nTask: TASK-3\.2   Agents: a2 .*\n\nSTATE: done\nSUMMARY: rework of the first round\n$/);
+  // The same report measured again changes nothing.
+  const again = measure();
+  assert.match(again.stdout, /report unchanged/);
+  assert.equal(readFileSync(reportFile(dir, "TASK-3.2"), "utf8"), text);
+  // --force rewrites the file from the transcript.
+  assert.match(measure("--force").stdout, /report overwritten/);
+  text = readFileSync(reportFile(dir, "TASK-3.2"), "utf8");
+  assert.ok(!text.includes("first round by hand") && !text.includes("## Round"));
+  assert.ok(text.includes("SUMMARY: rework of the first round"));
+});
+
+test("status_lists_proposed_goals_and_active_goal", () => {
+  const { run } = setup({
+    tasks: {
+      "TASK-4": { title: "old goal", status: "Done", assignees: [], labels: ["goal"] },
+      "TASK-8": { title: "current goal", status: "In Progress", assignees: [], labels: ["goal"] },
+      "TASK-8.1": { title: "a task", status: "Ready", assignees: [], labels: [] },
+      "TASK-6": { title: "evaluation harness", status: "To Do", assignees: [], labels: ["goal", "proposed"] },
+    },
+  });
+  run(["event", "goal.done", "--goal", "TASK-4"]); // the latest event with a goal names an old GOAL
+  const s = JSON.parse(run(["status", "--json"]).stdout);
+  assert.equal(s.goal, "TASK-8");
+  assert.deepEqual(s.goals, ["TASK-8"]);
+  assert.deepEqual(s.proposed, [{ id: "TASK-6", title: "evaluation harness", status: "To Do" }]);
+  assert.ok(!(s.tasks["To Do"] ?? []).some((t) => t.id === "TASK-6"), "proposed GOALs are not listed as tasks");
+  const text = run(["status"]).stdout;
+  assert.match(text, /^goal: TASK-8$/m);
+  assert.match(text, /^awaiting approval \(1\)\n  TASK-6 evaluation harness$/m);
+  // No GOAL in progress: null, whatever the events say.
+  const idle = setup({ tasks: { "TASK-4": { title: "old", status: "Done", assignees: [], labels: ["goal"] } } });
+  idle.run(["event", "goal.start", "--goal", "TASK-4"]);
+  assert.equal(JSON.parse(idle.run(["status", "--json"]).stdout).goal, null);
+  assert.match(idle.run(["status"]).stdout, /^goal: -$/m);
+});
+
+test("event_warns_on_unknown_type", () => {
+  const { dir, run } = setup();
+  const known = run(["event", "goal.approved", "--goal", "TASK-8", "--actor", "pm"]);
+  assert.equal(known.status, 0);
+  assert.equal(known.stderr, "");
+  const unknown = run(["event", "goal.aproved", "--goal", "TASK-8"]);
+  assert.equal(unknown.status, 0, "warns, does not fail");
+  assert.match(unknown.stderr, /unknown event type "goal\.aproved".*logged anyway/);
+  assert.deepEqual(types(dir), ["goal.approved", "goal.aproved"]);
+});
+
+/** A fake Claude config dir with two cached plugin versions and the install registry. */
+function fakePluginCache(dir, { installed = "new222", scope = "project" } = {}) {
+  const config = join(dir, "claude-home");
+  const cache = join(config, "plugins", "cache", "okon3", "maestro");
+  const put = (version, path, text) => {
+    mkdirSync(dirname(join(cache, version, path)), { recursive: true });
+    writeFileSync(join(cache, version, path), text);
+  };
+  put("old111", "skills/pm/SKILL.md", "old pm");
+  put("old111", "skills/pause/SKILL.md", "same");
+  put("old111", "agents/architect.md", "old architect");
+  put("old111", "scripts/cli.mjs", "old code");
+  put("new222", "skills/pm/SKILL.md", "new pm");
+  put("new222", "skills/pause/SKILL.md", "same");
+  put("new222", "skills/fast-lane/SKILL.md", "added");
+  put("new222", "scripts/cli.mjs", "new code");
+  const entry = { scope, installPath: join(cache, installed), version: installed, ...(scope === "user" ? {} : { projectPath: dir }) };
+  writeFileSync(join(config, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: { "maestro@okon3": [entry] } }));
+  return { config, cache };
+}
+
+test("doctor_reports_plugin_version_mismatch", () => {
+  const { dir, run } = setup();
+  const { config, cache } = fakePluginCache(dir);
+  const doctor = (running, cfg = config) => {
+    const r = run(["doctor", "--json"], dir, { CLAUDE_CONFIG_DIR: cfg, MAESTRO_TEST_PLUGIN_ROOT: running });
+    return { r, check: JSON.parse(r.stdout).checks.find((c) => c.name === "plugin-version") };
+  };
+  const { r, check } = doctor(join(cache, "old111"));
+  assert.equal(r.status, 0, "a warning, not a failure");
+  assert.equal(check.ok, false);
+  assert.equal(check.warn, true);
+  assert.equal(check.plugin.status, "differs");
+  assert.match(check.detail, /runs old111, installed is new222/);
+  assert.deepEqual(check.plugin.changes, [
+    { file: "agents/architect.md", change: "removed" },
+    { file: "skills/fast-lane/SKILL.md", change: "added" },
+    { file: "skills/pm/SKILL.md", change: "changed" },
+  ]);
+  assert.match(check.fix, /\/reload-plugins is the owner's command/);
+  const text = run(["doctor"], dir, { CLAUDE_CONFIG_DIR: config, MAESTRO_TEST_PLUGIN_ROOT: join(cache, "old111") }).stdout;
+  assert.match(text, /^WARN plugin-version: .*skills\/pm\/SKILL\.md \(changed\).*-> \/reload-plugins/m);
+  // The installed version itself: OK.
+  const same = doctor(join(cache, "new222")).check;
+  assert.equal(same.plugin.status, "same");
+  assert.equal(same.ok, true);
+  // A user-scope install counts when there is no project install.
+  const user = setup();
+  const u = fakePluginCache(user.dir, { scope: "user" });
+  const ur = user.run(["doctor", "--json"], user.dir, { CLAUDE_CONFIG_DIR: u.config, MAESTRO_TEST_PLUGIN_ROOT: join(u.cache, "old111") });
+  assert.equal(JSON.parse(ur.stdout).checks.find((c) => c.name === "plugin-version").plugin.status, "differs");
+  // Robust: installed folder gone, registry missing or broken, running from a checkout.
+  rmSync(join(cache, "new222"), { recursive: true });
+  const gone = doctor(join(cache, "old111")).check;
+  assert.equal(gone.plugin.status, "differs");
+  assert.match(gone.detail, /installed folder missing/);
+  const elsewhere = join(dir, "other-home");
+  mkdirSync(join(elsewhere, "plugins", "cache", "okon3", "maestro", "old111"), { recursive: true });
+  assert.equal(doctor(join(elsewhere, "plugins", "cache", "okon3", "maestro", "old111"), elsewhere).check.plugin.status, "not-installed");
+  writeFileSync(join(config, "plugins", "installed_plugins.json"), "{broken");
+  assert.equal(doctor(join(cache, "old111")).check.plugin.status, "unknown");
+  assert.equal(doctor(join(dir, "checkout")).check.plugin.status, "dev");
 });
