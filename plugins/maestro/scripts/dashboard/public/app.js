@@ -18,12 +18,26 @@ const REPORT_KINDS = [
   { kind: "qa", label: "QA" },
   { kind: "review", label: "Code reviews" },
 ];
+// Raw token fields as measured (summed for totals).
 const TOKEN_FIELDS = [
   ["input", "Input"],
   ["output", "Output"],
   ["cacheRead", "Cache read"],
   ["cacheWrite", "Cache write"],
 ];
+// Columns shown in cost tables. Almost all input goes through the prompt cache, so "uncached" alone looks
+// tiny: show the total input first and explain each part on hover.
+const TOKEN_COLUMNS = [
+  ["inTotal", "Input (total)", "Everything the model read: uncached + cache read + cache write"],
+  ["input", "Uncached", "New input not served from or written to the prompt cache"],
+  ["cacheRead", "Cache read", "Conversation re-read from the prompt cache on every step (about a tenth of the input price)"],
+  ["cacheWrite", "Cache write", "New context written to the prompt cache: files read, tool results"],
+  ["output", "Output", "Text and code the model wrote"],
+];
+const tokenValue = (u, f) =>
+  f === "inTotal" ? (Number(u?.input) || 0) + (Number(u?.cacheRead) || 0) + (Number(u?.cacheWrite) || 0) : u?.[f];
+const tokenHeads = () => TOKEN_COLUMNS.map(([, l, title]) => `<th scope="col" class="num" title="${title}">${l}</th>`).join("");
+const tokenCells = (u) => TOKEN_COLUMNS.map(([f]) => `<td class="num">${fmtTokens(tokenValue(u, f))}</td>`).join("");
 const FEED_LIMIT = 30;
 const RECENT_AGENTS = 12;
 
@@ -729,7 +743,7 @@ function modelLabel(id, unpriced) {
 function goalCost(g, extra, unpriced) {
   const models = Object.entries(g.models || {});
   const rows = models
-    .map(([id, u]) => `<tr><th scope="row">${modelLabel(id, unpriced)}</th>${TOKEN_FIELDS.map(([f]) => `<td class="num">${fmtTokens(u?.[f])}</td>`).join("")}</tr>`)
+    .map(([id, u]) => `<tr><th scope="row">${modelLabel(id, unpriced)}</th>${tokenCells(u)}</tr>`)
     .join("");
   return `<article class="goal-cost">
     <header><h3>${idEl(g.goal)} ${esc(g.title)}</h3></header>
@@ -740,7 +754,7 @@ function goalCost(g, extra, unpriced) {
       <div><dt>Tokens</dt><dd>${fmtTokens(totalTokens(g.models))}</dd></div>
       ${extra ? `<div><dt>Rework cycles</dt><dd>${extra.rework}</dd></div><div><dt title="Owner interventions">Interventions</dt><dd>${extra.owner}</dd></div>` : ""}
     </dl>
-    ${models.length ? `<table class="data compact"><thead><tr><th scope="col">Model</th>${TOKEN_FIELDS.map(([, l]) => `<th scope="col" class="num">${l}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>` : `<p class="quiet">No token data.</p>`}
+    ${models.length ? `<table class="data compact"><thead><tr><th scope="col">Model</th>${tokenHeads()}</tr></thead><tbody>${rows}</tbody></table>` : `<p class="quiet">No token data.</p>`}
   </article>`;
 }
 
@@ -782,11 +796,11 @@ function costTable(tasks, unpriced) {
       const usd = `<td rowspan="${span}" class="num usd">${usdCell(t.usd, t.models, unpriced)}</td>`;
       if (!models.length) return `<tr class="group-start">${first}<td colspan="5" class="quiet">no token data</td>${usd}</tr>`;
       return models
-        .map(([id, u], k) => `<tr${k === 0 ? ' class="group-start"' : ""}>${k === 0 ? first : ""}<td>${modelLabel(id, unpriced)}</td>${TOKEN_FIELDS.map(([f]) => `<td class="num">${fmtTokens(u?.[f])}</td>`).join("")}${k === 0 ? usd : ""}</tr>`)
+        .map(([id, u], k) => `<tr${k === 0 ? ' class="group-start"' : ""}>${k === 0 ? first : ""}<td>${modelLabel(id, unpriced)}</td>${tokenCells(u)}${k === 0 ? usd : ""}</tr>`)
         .join("");
     })
     .join("");
-  return `<div class="table-wrap"><table class="data costs"><thead><tr><th scope="col">Task</th><th scope="col">GOAL</th><th scope="col" class="num">Wall time</th><th scope="col" class="num">Rework</th><th scope="col" class="num" title="Owner interventions">Interventions</th><th scope="col">Model</th>${TOKEN_FIELDS.map(([, l]) => `<th scope="col" class="num">${l}</th>`).join("")}<th scope="col" class="num">Est. USD</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="data costs"><thead><tr><th scope="col">Task</th><th scope="col">GOAL</th><th scope="col" class="num">Wall time</th><th scope="col" class="num">Rework</th><th scope="col" class="num" title="Owner interventions">Interventions</th><th scope="col">Model</th>${tokenHeads()}<th scope="col" class="num">Est. USD</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 // ---------- event feed ----------
