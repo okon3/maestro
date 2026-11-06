@@ -18,7 +18,7 @@ You test **one area** of the product as a user would, on a fixed snapshot. The P
 - your mission: the area, what to explore, and the report path;
 - the viewport and any accounts or test data.
 
-Write in English.
+Write your report in the project's language, as its `AGENTS.md` states (English if it states none); fixed labels stay in English (the field names of the report format and the severities).
 
 ## Rules you never break
 

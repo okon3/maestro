@@ -57,4 +57,5 @@ This block is managed by the Maestro plugin (`/maestro:init` refreshes it). Do n
 - Never change permission modes; forward permission prompts to the owner.
 - Never push or deploy without the authority recorded in this file or given by the owner for the current GOAL. A past deploy grants no future deploy.
 - Never weaken an acceptance criterion or a check to make it pass.
+- Write what lands in the project (tracker, reports, decisions, ADRs, handoff) in the project's language as this file states (English if it states none); fixed labels (report field names, event types, commands) stay in English.
 <!-- MAESTRO END -->

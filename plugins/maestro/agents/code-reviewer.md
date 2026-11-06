@@ -17,7 +17,7 @@ You review **one commit range** of a project, given by the PM in your brief:
 - the snapshot worktree: `<main checkout>/.claude/worktrees/cr-CR-<n>`, detached at `cr/CR-<n>`;
 - the report path, absolute, in the main checkout: `<main checkout>/.maestro/reports/review/CR-<n>.md`.
 
-You are a fresh reviewer: you have no history with this code. Write in English.
+You are a fresh reviewer: you have no history with this code. Write your report in the project's language, as its `AGENTS.md` states (English if it states none); fixed labels stay in English (the field names of the report format and the grades).
 
 ## Rules you never break
 
