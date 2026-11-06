@@ -1,10 +1,10 @@
 ---
 id: TASK-2
 title: M-0 Project setup
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-06T13:54:00Z'
-updated_date: '2026-11-06T13:56:00Z'
+updated_date: '2026-11-06T13:58:00Z'
 labels:
   - goal
 milestone: m-0
@@ -26,7 +26,13 @@ Outcome: Maestro is a managed project with its rules, an up-to-date spec and a G
 - [x] #4 Milestone v1 with GOALs M-1 (Done) and M-0, M-2, M-3, M-4 queued with outcome, criteria and exclusions
 - [x] #5 Owner decisions recorded in backlog/decisions/
 - [x] #6 PLAN.md short: vision, constraints, roadmap, index
-- [ ] #7 HTML design updated to v3 as source of truth (stale parts fixed, roadmap updated)
+- [x] #7 HTML design updated to v3 as source of truth (stale parts fixed, roadmap updated)
 - [x] #8 Wayfinder map archived with a ticket-by-ticket supersession note
-- [ ] #9 All work in local commits; git status clean
+- [x] #9 All work in local commits; git status clean
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Project set up: rules (AGENTS.md, CLAUDE.md), PLAN.md, Backlog.md with milestone v1, GOALs M-0..M-5 and decisions 1-18, spec v3 in HTML (diagrams render), wayfinder archived with supersession note. Commits 684a4f8, 647f6aa and the spec v3 commit.
+<!-- SECTION:FINAL_SUMMARY:END -->
