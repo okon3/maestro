@@ -19,6 +19,7 @@ The goal is a state that a fresh clone can resume from: everything that matters 
    2. For a worktree whose work was already committed on `impl-<n>` but not integrated, `git branch -f wip/<task id> impl-<n>`.
    3. For each saved task: `backlog task edit <task id> --append-notes "paused <date>: WIP on wip/<task id> at <sha>; next: <step>"`.
    4. `maestro release <task id> --actor impl-<n> --status Ready`. Claims and locks live outside git and do not survive a clone.
+   5. The architect's goal worktree (`.claude/worktrees/goal-<GOAL id>`, on the goal branch) should be clean: the architect commits there before it returns. If `git -C <path> status --porcelain` shows changes (an interrupted merge: `git -C <path> merge --abort`; otherwise work in progress), commit them on the goal branch as `WIP goal/<GOAL id>: <what>` and note it in the handoff.
    Leave the worktrees in place: on this PC the resume reuses them. Leave the pause flag on: the resume turns it off.
 4. **Update the tracker.** Every task and GOAL shows its real state: In Progress only if something is really running (nothing should be), Blocked with the reason, Integrated where merged. Record counters (recovery, critique cycles) in the task notes.
 5. **Rewrite `.maestro/handoff.md`** with these sections, short and factual:
@@ -27,6 +28,6 @@ The goal is a state that a fresh clone can resume from: everything that matters 
    - `## Waiting for the owner`: open decisions and owner actions.
    - `## Next action`: the first concrete step on resume, with the `wip/` branches to restore.
    - `## Notes`: limits reached, usage and its reset time, anything a fresh session needs.
-6. **Log and commit.** `maestro event session.pause --actor pm --data '{"phase":"done"}'`. Commit the tracker, `.maestro/handoff.md`, `.maestro/events.jsonl` and any reports on the current branch (normally the goal branch).
-7. **Push only with authority.** If the project's `AGENTS.md` grants standing push authority, or the owner asks now, push the main branch, the goal branch, the `wip/*` branches and the `qa/*`, `cr/*` and `goal/*` tags. Otherwise tell the owner exactly what is unpushed and the command to push it.
+6. **Log and commit.** `maestro event session.pause --actor pm --data '{"phase":"done"}'`. Commit the tracker, `.maestro/handoff.md`, `.maestro/events.jsonl` and any reports on the main branch, in your checkout (it never leaves the main branch; the goal branch holds only code).
+7. **Push only with authority.** If the project's `AGENTS.md` grants standing push authority, or the owner asks now, push the main branch, the goal branch, the `wip/*` branches and the `qa/*`, `cr/*` and `done/*` tags. Otherwise tell the owner exactly what is unpushed and the command to push it.
 8. **Report to the owner:** what is paused, where the WIP is, what is pushed, and how to resume (`/maestro:resume`).
