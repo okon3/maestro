@@ -867,6 +867,7 @@ function render() {
   const banner = ui.fetchError ? `<p class="callout error">Last refresh failed (${esc(ui.fetchError)}); showing data from ${esc(relTime(ui.fetchedAt))}.</p>` : "";
   view.innerHTML = banner + VIEWS[ui.tab](s);
   renderFeed(s);
+  fitBoard();
   for (const [key, top] of inner) {
     const el = document.querySelector(`[data-keep-scroll="${CSS.escape(key)}"]`);
     if (el) el.scrollTop = top;
@@ -875,6 +876,18 @@ function render() {
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
   tick();
 }
+
+// Board columns reach the bottom of the window without making the page scroll: the free height is
+// the viewport below the board minus the layout's bottom padding (CSS alone cannot know the header height).
+function fitBoard() {
+  const board = document.querySelector(".board");
+  if (!board) return;
+  const layout = board.closest(".layout");
+  const pad = layout ? parseFloat(getComputedStyle(layout).paddingBottom) || 0 : 0;
+  const top = board.getBoundingClientRect().top + window.scrollY;
+  board.style.minHeight = `${Math.max(220, Math.floor(window.innerHeight - top - pad))}px`;
+}
+window.addEventListener("resize", fitBoard);
 
 function tick() {
   const now = Date.now();
