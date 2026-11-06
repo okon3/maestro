@@ -174,3 +174,32 @@ test("init_adds_definition_of_done_defaults_idempotently", () => {
   assert.match(r.stdout, /manual\s+backlog config definition_of_done/);
   assert.ok(!read(multi.dir, "backlog/config.yml").includes("Architect review approved"));
 });
+
+test("init_proposes_node_modules_link", () => {
+  const link = { link: ["node_modules"], run: null };
+  // New config in a Node project: the key is part of the created file.
+  const fresh = setup({ "package-lock.json": "{}\n" });
+  const dry = fresh.run("--dry-run");
+  assert.match(dry.stdout, /would create\s+\.maestro\/config\.json\s+\(.*worktreeSetup\.link \["node_modules"\]/);
+  assert.equal(fresh.run().status, 0);
+  assert.deepEqual(JSON.parse(read(fresh.dir, ".maestro/config.json")).worktreeSetup, link);
+
+  // Existing config without the key: an `update` line in the dry run, applied only by the real run.
+  const config = '{\r\n  "mainBranch": "main",\r\n  "language": "en"\r\n}\r\n';
+  const existing = setup({ "yarn.lock": "", ".maestro/config.json": config });
+  const plan = existing.run("--dry-run");
+  assert.match(plan.stdout, /would update\s+\.maestro\/config\.json\s+\(worktreeSetup\.link \["node_modules"\]/);
+  assert.equal(read(existing.dir, ".maestro/config.json"), config, "dry run writes nothing");
+  existing.run();
+  const text = read(existing.dir, ".maestro/config.json");
+  assert.ok(text.startsWith('{\r\n  "mainBranch": "main",\r\n  "language": "en",\r\n'), "owner's text and line endings kept");
+  assert.deepEqual(JSON.parse(text), { mainBranch: "main", language: "en", worktreeSetup: link });
+  assert.match(existing.run("--dry-run").stdout, /^unchanged\s+\.maestro\/config\.json/m, "second run proposes nothing");
+
+  // The owner's own choice (even an empty list) is never overridden; non-Node projects get no proposal.
+  const declined = setup({ "node_modules/x/index.js": "", ".maestro/config.json": '{"worktreeSetup":{"link":[]}}\n' });
+  assert.match(declined.run("--dry-run").stdout, /^unchanged\s+\.maestro\/config\.json/m);
+  const plain = setup();
+  plain.run();
+  assert.equal("worktreeSetup" in JSON.parse(read(plain.dir, ".maestro/config.json")), false);
+});

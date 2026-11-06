@@ -54,7 +54,7 @@ backlog task create "<title>" -p <goal-id> -s Ready --ref "scope:<glob>" [--ref 
 
 For each implementer slot (`impl-1`, `impl-2`):
 
-1. Run `maestro worktree impl-<n> --goal <goal-id>`. Add `--reuse` if the worktree exists and holds no unmerged work.
+1. Run `maestro worktree impl-<n> --goal <goal-id>`. Add `--reuse` if the worktree exists and holds no unmerged work. The command also applies the project's `worktreeSetup` (`.maestro/config.json`): it links the main checkout's `node_modules` (or the configured folders) into the worktree and runs the optional setup command, so implementers do not install dependencies. Never link or unlink folders by hand.
 2. Launch an **Agent** with `subagent_type: "maestro:implementer"`, the chosen `model`, and a brief containing:
    - task id and worktree path;
    - actor name (`impl-<n>`);
@@ -90,7 +90,7 @@ Review only `done` and `done_with_concerns`:
    - save the implementer's final report as `.maestro/reports/task/<id>.md`;
    - `backlog task edit <id> -s Integrated`; the implementer checked each criterion when its test passed: uncheck (`--uncheck-ac <n>`) any you do not accept, and check any it missed;
    - `maestro measure <id> --goal <goal-id> --agent-id <agent ids> --actor architect --rework <correction cycles>`;
-   - remove the worktree and its branch.
+   - remove the worktree with `maestro worktree impl-<n> --remove` (it unlinks the shared folders first, so the main checkout's packages are never deleted through a junction), then delete its branch (`git branch -d impl-<n>`). If the removal fails because a process holds the worktree, the command says so: stop the process (usually a dev or preview server the implementer left running) and retry.
 
    The implementer has already released the claim.
 

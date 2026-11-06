@@ -26,7 +26,7 @@ This block is managed by the Maestro plugin (`/maestro:init` refreshes it). Do n
 | `PLAN.md` | vision, constraints, roadmap, index | yes |
 | `backlog/` | Backlog.md: GOALs (label `goal`), tasks, decisions, archive | yes |
 | `docs/adr/` | architecture decisions | yes |
-| `.maestro/config.json` | Maestro settings (main branch, bands, review cadence, language) | yes |
+| `.maestro/config.json` | Maestro settings (main branch, bands, review cadence, language, worktree setup) | yes |
 | `.maestro/handoff.md` | PM state summary, rewritten only by the PM | yes |
 | `.maestro/events.jsonl` | append-only event log (`merge=union`) | yes |
 | `.maestro/reports/` | task, QA and review reports | yes |
@@ -44,7 +44,7 @@ This block is managed by the Maestro plugin (`/maestro:init` refreshes it). Do n
 
 - `maestro doctor` (prerequisites), `maestro status` (GOAL, tasks, claims, usage).
 - `maestro claim <task> --actor <name>` / `maestro release <task> --actor <name> [--status S]`.
-- `maestro worktree <name> --goal <GOAL id> [--reuse]`.
+- `maestro worktree <name> --goal <GOAL id> [--reuse]`, `maestro worktree <name> --detach <tag>` (snapshot), `maestro worktree <name> --remove [--force]`. New worktrees get the `worktreeSetup` of `.maestro/config.json` (for example a link to the main checkout's `node_modules`); always remove them with `--remove`, never by hand.
 - `maestro event <type> [--goal G] [--task T] [--actor A] [--data JSON]`.
 - `maestro usage [--probe]`, `maestro context`, `maestro measure <task> --agent-id <ids>`.
 - `backlog task list --plain`, `backlog task <id> --plain`.

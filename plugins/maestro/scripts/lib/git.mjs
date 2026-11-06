@@ -25,20 +25,28 @@ export function refExists(cwd, ref) {
   }
 }
 
-/** Branch checked out in the worktree at `path`, or null if no such worktree is registered. */
-export function worktreeBranch(cwd, path) {
-  const want = norm(path);
+/** Registered worktrees: [{ path, branch, detached }] (branch without refs/heads/, null when detached). */
+export function listWorktrees(cwd) {
+  const list = [];
   let current = null;
   for (const line of git(cwd, ["worktree", "list", "--porcelain"]).split("\n")) {
-    if (line.startsWith("worktree ")) current = { path: line.slice(9), branch: null };
-    else if (line.startsWith("branch ") && current) current.branch = line.slice(7).replace(/^refs\/heads\//, "");
-    else if (line === "" && current) {
-      if (norm(current.path) === want) return current.branch;
-      current = null;
-    }
+    if (line.startsWith("worktree ")) list.push((current = { path: line.slice(9), branch: null, detached: false }));
+    else if (!current) continue;
+    else if (line.startsWith("branch ")) current.branch = line.slice(7).replace(/^refs\/heads\//, "");
+    else if (line === "detached") current.detached = true;
   }
-  if (current && norm(current.path) === want) return current.branch;
-  return null;
+  return list;
+}
+
+/** The registered worktree at `path`, or null. */
+export function findWorktree(cwd, path) {
+  const want = norm(path);
+  return listWorktrees(cwd).find((w) => norm(w.path) === want) ?? null;
+}
+
+/** Branch checked out in the worktree at `path`, or null if no such worktree is registered (or it is detached). */
+export function worktreeBranch(cwd, path) {
+  return findWorktree(cwd, path)?.branch ?? null;
 }
 
 export const worktreePath = (root, name) => join(root, ".claude", "worktrees", name);

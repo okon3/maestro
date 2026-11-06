@@ -19,6 +19,7 @@ plugins/maestro/
     lib/context.mjs                 context usage from a transcript
     lib/backlog.mjs                 Backlog.md calls (version check, task view, edit)
     lib/git.mjs                     git helpers (common dir, branches, worktrees)
+    lib/worktree.mjs                worktree setup (links, setup command) and safe removal
     hooks/*.mjs                     one entry per hook event
   templates/                        project files written by the init skill
   test/                             node:test suites (node --test)
@@ -36,7 +37,8 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
 | `.maestro/reports/<kind>/<id>.md` | yes | `task/<task-id>.md` (implementer report, saved by the architect at integration), `qa/QA-n*.md` (PM requirements and QA reports), `review/CR-n.md` (reviewer) |
 | `.maestro/runtime/` | no | usage cache, hook band state, misc runtime |
 | `<git-common-dir>/maestro-locks/<task-id>/` | no | claim locks, shared by all worktrees |
-| `.claude/worktrees/<name>/` | no | implementer worktrees (`impl-n`); detached QA and review snapshots (`qa-QA-n`, `cr-CR-n`) |
+| `.claude/worktrees/<name>/` | no | implementer worktrees (`impl-n`); detached QA and review snapshots (`qa-QA-n`, `cr-CR-n`); may hold links to main-checkout folders (`worktreeSetup`) |
+| `<git-common-dir>/worktrees/<name>/maestro-links.json` | no | folders linked by the worktree setup, read by `--remove`; git deletes it with the worktree |
 | `backlog/` | yes | Backlog.md tracker |
 | `docs/adr/` | yes | architecture decision records |
 
@@ -52,11 +54,21 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
   "usageBands": [85, 95],
   "backlogVersion": "1.55.3",
   "reviewEveryTasks": 15,
-  "language": "it"
+  "language": "it",
+  "worktreeSetup": { "link": [], "run": null }
 }
 ```
 
-All keys are optional; `lib/config.mjs` merges the file over these defaults. Optional `secretPaths` (array of globs, default `[]`) lists extra project files that subagents must not touch (section 7, `secret-guard.mjs`); a missing or invalid value counts as `[]`. The project root is the git top level of the main worktree (`git rev-parse --path-format=absolute --git-common-dir`, parent dir), so commands run from a worktree read and write the main checkout's `.maestro/`.
+All keys are optional; `lib/config.mjs` merges the file over these defaults. Optional `secretPaths` (array of globs, default `[]`) lists extra project files that subagents must not touch (section 7, `secret-guard.mjs`); a missing or invalid value counts as `[]`.
+
+`worktreeSetup` is the post-create step of `maestro worktree` (implementer worktrees and detached snapshots):
+
+- `link`: folders of the main checkout, as paths relative to the project root (no `..`, not absolute, not `.git`), linked into each new worktree at the same path when they exist in the main checkout: a directory **junction** on Windows (no admin rights or developer mode needed), a directory symlink elsewhere. Typical value: `["node_modules"]`; a monorepo can also list `apps/web/node_modules`. A missing source, a source that is not a folder, or a path that already exists in the worktree is skipped with a warning. After linking, the command checks with `git status` that the link is ignored in the worktree and warns otherwise (on Linux and macOS a link is a file for git, so the ignore line needs no trailing slash: `node_modules`, not `node_modules/`).
+- `run`: optional shell command run in the new worktree after linking (cwd = worktree; env `MAESTRO_MAIN_CHECKOUT`, `MAESTRO_WORKTREE`; output on stderr; 30 minute timeout), for projects that need an install or a generation step instead of a link. A non-zero exit leaves the worktree in place and makes the command exit 1. `--reuse` re-links but never re-runs it.
+
+Sharing `node_modules` is safe because implementers never change package manifests or lockfiles (shared files outside their scope: a needed dependency goes back to the architect) and never run an install in their worktree, which would write through the link into the main checkout. `maestro init` proposes `{"link": ["node_modules"], "run": null}` when the project has `node_modules` or a Node lockfile (`package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`, `bun.lockb`): in the created config, or as an `update` line for an existing config without the key. An existing `worktreeSetup`, even an empty one, is never changed. An invalid `worktreeSetup` makes `maestro worktree` exit 1.
+
+The project root is the git top level of the main worktree (`git rev-parse --path-format=absolute --git-common-dir`, parent dir), so commands run from a worktree read and write the main checkout's `.maestro/`.
 
 ## 4. Event log: `.maestro/events.jsonl`
 
@@ -97,6 +109,7 @@ Computed from a transcript JSONL: sum of `message.usage` over `type:"assistant"`
 
 - `lib/config.mjs`: `findProjectRoot(cwd)`, `gitCommonDir(cwd)`, `loadConfig(cwd) -> {root, config, initialized}` (done).
 - `lib/events.mjs`: `appendEvent(root, type, fields)`, `readEvents(root)`, `makeEvent(type, fields, now)` (done).
+- `lib/worktree.mjs`: `normalizeSetup(value) -> {link, run}` (throws on bad shapes), `applySetup(root, path, setup, {runCommand}) -> {linked, warnings, run}`, `removeLinks(path, configured) -> [{entry, target}]`, `restoreLinks(path, removed)`, `worktreeBusy(path) -> code|null` (Windows only), `explainRemoveFailure(message, name)`.
 - `lib/context.mjs` (owned by the hooks task):
   - `contextUsage(transcriptPath, {window}) -> {model, contextTokens, window, percent, postCompactNoUsageYet, preCompactTokens}`: last main-chain assistant message (skip `isSidechain:true` and model `<synthetic>`), `input + cache_read + cache_creation`; reads the file backwards in 256 KB chunks; after a `compact_boundary` with no later assistant message returns `postCompactNoUsageYet:true`.
   - `usageSummary(transcriptPath, {from, to} = {}) -> {models, wallMs}` (section 5). With `from` / `to` (ISO strings or ms), only assistant messages whose `timestamp` is in `[from, to)` count and `wallMs` is the span of those messages; the dashboard uses it to cost the PM session inside a GOAL window.
@@ -116,7 +129,9 @@ Exit code 0 on success, 1 on error, 2 on a refused operation (claim denied, fail
 | `maestro event <type> [--goal G] [--task T] [--actor A] [--data JSON]` | appends one event |
 | `maestro claim <task> --actor <name>` | mkdir lock in `<git-common-dir>/maestro-locks/<task>`; checks status is `Ready` (or `To Do`) and no other assignee via `backlog task view --json`; then `backlog task edit <task> -a @<name> -s "In Progress"` in the main checkout; logs `task.claim` or `task.claim_denied` (exit 2) |
 | `maestro release <task> --actor <name> [--status S]` | removes the lock, optional status edit, logs `task.release` |
-| `maestro worktree <name> --goal <G>` | creates `.claude/worktrees/<name>` on branch `<name>` from `goal/<G>` (creates the goal branch from main if missing); prints the path |
+| `maestro worktree <name> --goal <G> [--reuse]` | creates `.claude/worktrees/<name>` on branch `<name>` from `goal/<G>` (creates the goal branch from main, or from `origin/goal/<G>` when only the remote has it), then applies `worktreeSetup` (section 3); prints the path on stdout and setup warnings on stderr. Exit 2 when the path or branch exists; `--reuse` accepts an existing worktree on branch `<name>` and only re-links. `--json`: `{path, branch, base, setup: {linked, warnings, run}}` |
+| `maestro worktree <name> --detach <ref> [--reuse]` | detached snapshot (QA `qa-QA-n`, code review `cr-CR-n`) at a tag or commit, with the same setup; exit 1 for an unknown ref |
+| `maestro worktree <name> --remove [--force]` | safe removal: (1) exit 1 when run from inside the worktree; (2) on Windows, probes the folder with a rename and back: if a process holds it (a dev or preview server, a watcher, a terminal whose cwd is inside), refuses with exit 2 **before anything is deleted** and names the likely cause; (3) unlinks, without following them, the configured `link` entries, the entries recorded in `maestro-links.json` and any untracked junction or symlink at the worktree's top level (a folder linked by hand); (4) runs `git worktree remove [--force]`. On failure it restores the links and exits 1 with git's error plus the likely cause (uncommitted or untracked files: use `--force`; a locked worktree; a process holding files). Never deletes recursively through a link. A worktree that does not exist is a no-op (exit 0). |
 | `maestro context [--transcript P] [--json]` | context usage of a transcript (default: newest `.jsonl` under `~/.claude/projects/<cwd with non-alphanumerics as ->`) |
 | `maestro usage [--probe] [--json]` | last usage sample; `--probe` runs `claude -p "Reply OK" --output-format stream-json --verbose --model haiku --no-session-persistence </dev/null` and records `usage.sample` |
 | `maestro measure <task> --agent-id <id>[,<id>] [--transcript P] [--goal G] [--actor A] [--interventions N] [--rework N]` | reads `<session>/subagents/agent-<id>.jsonl` next to the session transcript (same default as `context`), writes `task.measure` |
