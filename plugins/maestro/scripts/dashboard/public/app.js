@@ -894,12 +894,14 @@ function render() {
 // Board columns reach the bottom of the window without making the page scroll: the free height is
 // the viewport below the board minus the layout's bottom padding (CSS alone cannot know the header height).
 function fitBoard() {
-  const board = document.querySelector(".board");
-  if (!board) return;
-  const layout = board.closest(".layout");
+  const layout = document.querySelector(".layout");
   const pad = layout ? parseFloat(getComputedStyle(layout).paddingBottom) || 0 : 0;
-  const top = board.getBoundingClientRect().top + window.scrollY;
-  board.style.minHeight = `${Math.max(220, Math.floor(window.innerHeight - top - pad))}px`;
+  const room = (el) => Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY) - pad);
+  const board = document.querySelector(".board");
+  if (board) board.style.minHeight = `${Math.max(220, room(board))}px`;
+  // The event feed scrolls inside its own box and ends at the window bottom, so it never lengthens the page.
+  const feed = $("feed");
+  if (feed && getComputedStyle(feed).position === "sticky") feed.style.maxHeight = `${Math.max(200, room(feed))}px`;
 }
 window.addEventListener("resize", fitBoard);
 
