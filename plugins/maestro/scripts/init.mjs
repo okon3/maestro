@@ -134,7 +134,7 @@ export function patchBacklogConfig(text, { fresh }) {
 function detectMainBranch(root) {
   const has = (b) => {
     try {
-      execFileSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${b}`], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${b}`], { cwd: root, stdio: "ignore", windowsHide: true });
       return true;
     } catch {
       return false;
@@ -143,7 +143,7 @@ function detectMainBranch(root) {
   if (has("main")) return "main";
   if (has("master")) return "master";
   try {
-    return execFileSync("git", ["symbolic-ref", "--short", "HEAD"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+    return execFileSync("git", ["symbolic-ref", "--short", "HEAD"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true }).trim() || null;
   } catch {
     return null;
   }

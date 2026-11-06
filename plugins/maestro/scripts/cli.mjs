@@ -175,7 +175,7 @@ const COMMANDS = {
     const have = backlogVersion(root ?? process.cwd());
     add("backlog", have === wanted, have ? `${have} (wanted ${wanted})` : `missing (wanted ${wanted})`, `npm i -g backlog.md@${wanted}`);
     // Backlog.md runs its on_status_change hook with `sh -c`; without sh, task.status events are lost.
-    const sh = spawnSync("sh", ["-c", "exit 0"], { stdio: "ignore" });
+    const sh = spawnSync("sh", ["-c", "exit 0"], { stdio: "ignore", windowsHide: true });
     add("sh", sh.status === 0, sh.status === 0 ? "available" : "not on PATH", "run Claude Code from Git Bash or add Git's usr\\bin to PATH (task.status events need it)", true);
     add("config", !!config, config ? "valid" : "invalid or not in a git repository", "fix .maestro/config.json");
     add("maestro-init", initialized, initialized ? "initialized" : ".maestro/config.json not found", "run the init skill", true);

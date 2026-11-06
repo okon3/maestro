@@ -5,7 +5,7 @@ import { join } from "node:path";
 /** Run git with an argument array; returns trimmed stdout, throws with git's stderr on failure. */
 export function git(cwd, args) {
   try {
-    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], windowsHide: true }).trim();
   } catch (e) {
     throw new Error(`git ${args.join(" ")} failed: ${String(e.stderr ?? e.message).trim()}`);
   }
@@ -18,7 +18,7 @@ export function branchExists(cwd, branch) {
 /** True when a full ref (e.g. refs/remotes/origin/goal/TASK-3) exists. */
 export function refExists(cwd, ref) {
   try {
-    execFileSync("git", ["show-ref", "--verify", "--quiet", ref], { cwd, stdio: "ignore" });
+    execFileSync("git", ["show-ref", "--verify", "--quiet", ref], { cwd, stdio: "ignore", windowsHide: true });
     return true;
   } catch {
     return false;
