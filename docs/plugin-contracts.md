@@ -36,8 +36,9 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
 | --- | --- | --- |
 | `.maestro/config.json` | yes | project configuration (section 3) |
 | `.maestro/handoff.md` | yes | PM state summary, rewritten by the PM only |
+| `.maestro/playbook.md` | yes | project lessons, one line each, in sections `## implementer`, `## architect`, `## qa`, `## reviewer`, `## pm` (about 40 lines each); created empty by init, written only by the PM at GOAL close; each agent's brief carries its role's section |
 | `.maestro/events.jsonl` | yes | event log, append only, `merge=union`; created empty by init |
-| `.maestro/reports/<kind>/<id>.md` | yes | `task/<task-id>.md` (implementer report, written by `maestro measure` from the implementer's transcript), `qa/QA-n*.md` (PM requirements, explorer reports, triage), `review/CR-n.md` (reviewer). Init creates the folder with a `.gitkeep` |
+| `.maestro/reports/<kind>/<id>.md` | yes | `task/<task-id>.md` (implementer report, written by `maestro measure` from the implementer's transcript), `qa/QA-n*.md` (PM requirements, explorer reports, triage), `review/CR-n.md` (reviewer). Init creates the folder with a `.gitkeep`. Only with `frameworkFeedback: true`: `maestro-friction.md` (friction with the plugin itself, appended by the PM) |
 
 `.gitattributes` (written by init): `.maestro/events.jsonl merge=union`, `backlog/** text=auto eol=lf` and `.maestro/** text=auto eol=lf` (LF in the working tree too, so Windows with `core.autocrlf` prints no LF/CRLF warnings on tracker and event commits; `text=auto` leaves binaries such as QA screenshots alone).
 | `.maestro/runtime/` | no | usage cache (`usage.json`), pause flag (`pause.json`), interruption marker (`interrupted.json`), hook band state, misc runtime |
@@ -64,7 +65,7 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
 }
 ```
 
-All keys are optional; `lib/config.mjs` merges the file over these defaults. Optional `secretPaths` (array of globs, default `[]`) lists extra project files that subagents must not touch (section 7, `secret-guard.mjs`); a missing or invalid value counts as `[]`.
+All keys are optional; `lib/config.mjs` merges the file over these defaults. Optional `frameworkFeedback` (boolean, default `false`, never written by init) is an opt-in for Maestro's own pilot and lab projects: when `true`, the PM appends friction with the plugin itself to `.maestro/reports/maestro-friction.md`; when `false`, that friction is dropped and never shown to the user. Optional `secretPaths` (array of globs, default `[]`) lists extra project files that subagents must not touch (section 7, `secret-guard.mjs`); a missing or invalid value counts as `[]`.
 
 `worktreeSetup` is the post-create step of `maestro worktree` (implementer worktrees and detached snapshots):
 
@@ -110,7 +111,8 @@ Event vocabulary: every type the plugin, its skills and its agents write. The li
 | `review.start`, `review.done` | periodic-review skill | `{review, range?, violations?, debt?, suggestions?}` |
 | `decision.recorded` | decision skill | `{id, title}` |
 | `decision.ruling` | an implementer or the architect, through `maestro event ... --task <id> --actor <name>`, when it settles a minor (non-material) ambiguity itself | `{question, ruling}` |
-| `learning.proposed` | planned (TASK-8.3): an agent proposing a playbook learning, curated by the PM at GOAL close | free-form |
+| `learning.proposed` | the receiver of a final report, through `maestro event`, one per item of the report's `LEARNINGS:` field: the architect for its implementers (`--actor architect`), the PM for the architect, QA missions, the code reviewer and fast-lane implementers (`--actor pm`), and the PM for its own lessons. `goal` at top level (`task` for a fast lane) | `{role, text}`: `role` is the playbook section (`implementer`, `architect`, `qa`, `reviewer`, `pm`) |
+| `learning.curated` | PM skill at GOAL close, after curating the `learning.proposed` events logged since the previous `learning.curated` into `.maestro/playbook.md` | `{proposed, promoted, merged, dropped, pruned, rules?, friction?}`: `rules` = items the owner approved as `AGENTS.md` rules, `friction` = items appended to `maestro-friction.md` (only with `frameworkFeedback`) |
 
 ## 5. Usage record (measurement, decision-17)
 

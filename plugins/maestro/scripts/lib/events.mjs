@@ -45,6 +45,7 @@ export const KNOWN_EVENT_TYPES = new Set([
   "decision.recorded",
   "decision.ruling",
   "learning.proposed",
+  "learning.curated",
 ]);
 
 /** Build a normalized event object; `type` is required. */
