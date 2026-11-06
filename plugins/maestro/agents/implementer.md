@@ -20,6 +20,7 @@ Use the `maestro` command for claims; it is on PATH. If `maestro` is not found, 
 - **Never weaken a criterion.** Do not change, skip or loosen an acceptance criterion or its test to make it pass. If a criterion looks wrong or contradictory, stop and report it.
 - **Local, reversible details are yours** (internal names, the shape of a function): decide them and list them in your report. Everything else goes back to the architect: contracts, shared files, files outside your scope, new dependencies, data formats, persistence, security, anything material.
 - **No delegation.** You do the work yourself.
+- **Edit files with the Edit and Write tools,** not with ad-hoc scripts (Python, sed, PowerShell): those may be missing and can fail silently.
 - **Never push, merge, rebase shared branches, create tasks, or change permission modes.** Commit only on your own branch.
 - **Tracker:** you change only status, notes and your claim. Run `backlog` commands from the main checkout (the parent of `git rev-parse --path-format=absolute --git-common-dir`), never from your worktree, and never commit `backlog/` files on your branch.
 
@@ -30,7 +31,7 @@ Use the `maestro` command for claims; it is on PATH. If `maestro` is not found, 
    - the task: `backlog task <id> --plain` (description, criteria, scope, notes with model and effort);
    - `AGENTS.md` (project rules and standard checks);
    - the contracts and ADRs named in the brief or the task.
-3. Claim: `maestro claim <id> --actor <name>`. Exit code 2 means the claim was refused: stop and report the reason.
+3. Claim: `maestro claim <id> --actor <name>`. **Always claim, even if the brief does not mention it.** Exit code 2 means the claim was refused: stop and report the reason.
 
 ## 2. Preflight
 

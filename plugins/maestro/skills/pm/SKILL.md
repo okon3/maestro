@@ -61,14 +61,17 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
 
 1. Use the `maestro:start-goal` skill. It creates the goal branch, checks the GOAL fields, and launches the architect in the **foreground** with the brief.
 2. The architect returns in one of three states:
-   - **integrated**: the GOAL is merged into the main branch and tagged;
+   - **integrated**: the GOAL is merged into the main branch;
    - **blocked**: a material decision or an owner action is needed;
    - **failed**: with evidence.
 3. When blocked, ask the owner, record the decision, then resume **the same architect** with `SendMessage` to its agent id. It keeps its full history.
 4. After integration, run QA (`maestro:triage-qa` explains missions and triage) and, when due, the periodic review (`maestro:periodic-review`: every `reviewEveryTasks` integrated tasks or at GOAL end, whichever comes first). Findings become tasks for the architect.
 5. Close the GOAL:
    - check its acceptance criteria with evidence;
-   - set it to Done and archive it together with its tasks, in one commit;
+   - set every Integrated subtask and the GOAL to Done;
+   - a subtask that is not Integrated (an open defect or debt) must not be archived with the GOAL: with the owner, move it to the next GOAL or turn it into a standalone task (`backlog task edit <id> --parent ""` if supported, else recreate it and archive the old one with a pointer);
+   - tag the main branch `done/<goal-id>` (never `goal/<id>`: that name is the goal branch);
+   - archive the GOAL together with its Done tasks, in one commit on the main branch, including `.maestro/events.jsonl` and the reports;
    - add a one-line history entry to `PLAN.md`;
    - report to the owner: outcome, evidence, limitations, external actions taken, next step.
 

@@ -58,6 +58,7 @@ For each implementer slot (`impl-1`, `impl-2`):
    - task id and worktree path;
    - actor name (`impl-<n>`);
    - the plugin root, in case `maestro` is not on PATH;
+   - the instruction to claim the task first (`maestro claim <id> --actor impl-<n>`);
    - the contracts to read;
    - the checks to run;
    - what is out of scope.
@@ -88,7 +89,7 @@ Then plan the next wave from the real integrated code. Repeat until every GOAL c
 ## 5. Finish
 
 1. Merge the main branch into the goal branch, resolve conflicts and run all checks.
-2. Fast-forward or `--no-ff` merge the goal branch into the main branch. Tag `goal/<goal-id>`.
+2. Fast-forward or `--no-ff` merge the goal branch into the main branch. Do not tag: the PM tags `done/<goal-id>` when it closes the GOAL. Keep the goal branch: defect fixes from QA or review reuse it (`maestro worktree ... --goal <goal-id>`) and are merged into the main branch the same way.
 3. Check the GOAL acceptance criteria that have evidence. Leave closing the GOAL to the PM: QA and periodic review still follow.
 4. Return to the PM.
 

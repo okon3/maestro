@@ -18,7 +18,7 @@ It is due at the end of every GOAL, or when `reviewEveryTasks` (from `.maestro/c
 
 1. Pick the number: `git tag --list "cr/CR-*"`; `n` = highest + 1 (start at 1).
 2. Choose the range base: the previous tag `cr/CR-<n-1>`. For the first review, use the main-branch commit just before the first GOAL integrated with Maestro.
-3. Tag the main branch: `git tag cr/CR-<n> <mainBranch>`.
+3. Tag the main branch: `git tag cr/CR-<n> <mainBranch>`. Give the reviewer a read-only snapshot, not the main checkout: `git worktree add --detach .claude/worktrees/cr-CR-<n> cr/CR-<n>`; remove it when the review is triaged.
 4. Log: `maestro event review.start --goal <GOAL id> --actor pm --data '{"review":"CR-<n>","range":"<base>..cr/CR-<n>"}'`.
 5. Launch a **fresh** Agent with `subagent_type: "maestro:code-reviewer"`, in the foreground. Never reuse an earlier reviewer. Brief:
 
