@@ -20,6 +20,8 @@ Use the `maestro` command for claims; it is on PATH. If `maestro` is not found, 
 - **Never weaken a criterion.** Do not change, skip or loosen an acceptance criterion or its test to make it pass. If a criterion looks wrong or contradictory, stop and return `blocked`.
 - **Local, reversible details are yours** (internal names, the shape of a function): decide them and list them in your report. Everything else goes back to the architect through your report: contracts, shared files (package manifests, lockfiles, shared types, config) outside your scope, files outside your scope, new dependencies, data formats, persistence, security, anything material.
 - **Minor ambiguities are yours too.** When the spec allows two readings and the choice is not material, pick one, log it with `maestro event decision.ruling --task <id> --actor <name> --data '{"question":"...","ruling":"..."}'` and list it under RULINGS.
+- **Dependencies are shared, not yours to install.** Your worktree may hold a link (a junction on Windows) to the main checkout's `node_modules` or another dependency folder, set up by `maestro worktree`. Use it as it is: never run `npm ci`, `npm install`, `pnpm install`, `yarn` or similar in the worktree and never delete the linked folder, because that changes the main checkout's packages. Package manifests and lockfiles are shared files outside your scope; if you need a dependency, ask in your report.
+- **Leave no process running.** Start a dev or preview server or a watcher only when a check or a self-smoke needs it, in the background, on a port no one else uses, and stop it as soon as you are done. A process left running in the worktree locks its files and blocks its removal.
 - **No delegation.** You do the work yourself.
 - **Edit files with the Edit and Write tools,** not with ad-hoc scripts (Python, sed, PowerShell): those may be missing and can fail silently.
 - **Never push, merge, rebase shared branches, create tasks, or change permission modes.** Commit only on your own branch.
@@ -60,14 +62,15 @@ If something is missing, renamed or behaves differently, the spec is stale. Do n
 ## 4. Stop early
 
 - **needs_context:** you need an answer only the architect can give (a missing contract, a material ambiguity). Commit any work in progress, keep the claim, append the question to the task notes and return the report with the question under DOUBTS. The architect resumes you with the answer: continue from where you stopped.
-- **blocked:** you cannot finish for a reason the architect must handle (a failed check in step 1, a refused claim, a wrong criterion, a change outside your scope or a material choice, stuck after two approaches). If you hold the claim: commit any work in progress, `backlog task edit <id> -s Blocked --append-notes "blocked: <reason>"` and `maestro release <id> --actor <name>`. Return the report with the evidence.
+- **blocked:** you cannot finish for a reason the architect must handle (a failed check in step 1, a refused claim, a wrong criterion, a change outside your scope or a material choice, stuck after two approaches). Stop any process you started in the worktree. If you hold the claim: commit any work in progress, `backlog task edit <id> -s Blocked --append-notes "blocked: <reason>"` and `maestro release <id> --actor <name>`. Return the report with the evidence.
 
 ## 5. Finish
 
-1. Commit on your branch: atomic commits, clear messages, the project's commit conventions. Leave the worktree clean.
-2. Record the result in the tracker (from the main checkout): `backlog task edit <id> --append-notes "<branch, commits, checks, AC -> test mapping, local decisions, rulings>"`.
-3. `maestro release <id> --actor <name> --status "In Review"`.
-4. Return the report with `STATE: done`, or `done_with_concerns` when the work is complete but the architect should weigh something (a doubtful criterion, a fragile test, a shared-file change you need): list it under DOUBTS.
+1. Stop every process you started in the worktree (dev or preview servers, watchers) and check none is left.
+2. Commit on your branch: atomic commits, clear messages, the project's commit conventions. Leave the worktree clean.
+3. Record the result in the tracker (from the main checkout): `backlog task edit <id> --append-notes "<branch, commits, checks, AC -> test mapping, local decisions, rulings>"`.
+4. `maestro release <id> --actor <name> --status "In Review"`.
+5. Return the report with `STATE: done`, or `done_with_concerns` when the work is complete but the architect should weigh something (a doubtful criterion, a fragile test, a shared-file change you need): list it under DOUBTS.
 
 If the architect sends corrections, the task is back in Ready: claim it again, apply them on the same branch, rerun the checks, release it to In Review and return a new report.
 
