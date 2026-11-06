@@ -33,7 +33,7 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
 | `.maestro/config.json` | yes | project configuration (section 3) |
 | `.maestro/handoff.md` | yes | PM state summary, rewritten by the PM only |
 | `.maestro/events.jsonl` | yes | event log, append only, `merge=union` |
-| `.maestro/reports/<kind>/<id>.md` | yes | kind: `task`, `qa`, `review` |
+| `.maestro/reports/<kind>/<id>.md` | yes | `task/<task-id>.md` (implementer report, saved by the architect at integration), `qa/QA-n*.md` (PM requirements and QA reports), `review/CR-n.md` (reviewer) |
 | `.maestro/runtime/` | no | usage cache, hook band state, misc runtime |
 | `<git-common-dir>/maestro-locks/<task-id>/` | no | claim locks, shared by all worktrees |
 | `.claude/worktrees/<name>/` | no | implementer worktrees |
@@ -72,7 +72,7 @@ Event types (wave 1):
 
 | type | written by | data |
 | --- | --- | --- |
-| `task.status` | Backlog.md `on_status_change` via `maestro event` | `{from, to, title}` |
+| `task.status` | Backlog.md `onStatusChange` via `maestro event` (runs with `sh -c`; needs `sh` on PATH, checked by `maestro doctor`) | `{from, to}` (no title: shell quoting) |
 | `task.claim` / `task.claim_denied` / `task.release` | `maestro claim` / `maestro release` | `{reason?}` |
 | `agent.start` / `agent.stop` | SubagentStart / SubagentStop hooks | `{agentType}`; stop adds `{usage}` (section 5) |
 | `task.measure` | `maestro measure` (architect, when a task is integrated) | `{agentIds, usage, wallMs, ownerInterventions, reworkCycles}` |
@@ -80,7 +80,8 @@ Event types (wave 1):
 | `limit.hit` | StopFailure hook | `{error}` |
 | `usage.sample` | `maestro usage --probe` | `{fiveHour, sevenDay, resetsAt}` |
 | `context.band` | context hook, once per band crossing | `{percent, band}` |
-| `goal.*`, `decision.*`, `qa.*`, `review.*` | skills, through `maestro event` | free-form |
+| `goal.start`, `session.pause`, `session.resume`, `maestro.init` | PM skills, through `maestro event` | free-form |
+| `qa.start`, `qa.freeze`, `qa.done`, `review.start`, `review.done`, `decision.recorded` | PM skills, through `maestro event` | free-form |
 
 ## 5. Usage record (measurement, decision-17)
 

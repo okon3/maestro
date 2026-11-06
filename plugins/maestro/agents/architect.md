@@ -20,6 +20,7 @@ Use the `maestro` command for the team's operations; it is on PATH. If `maestro`
 - **Never push, deploy, or change permission modes.** Commit only on the goal branch and the implementers' branches. Merge into the main branch only at the end, as described in step 5.
 - **Limits.** At most **2 correction cycles** per task. At most **2 recovery attempts** after an initial failure, per problem. Record the counters in the task notes. At a limit, stop that task and report it.
 - **Only you and the PM create tasks.** Implementers only change status, notes and claims.
+- **The tracker lives in the main checkout.** Run every `backlog` and `maestro` command from the main checkout, which is on the goal branch during the GOAL. Commit tracker changes there, on the goal branch, at the end of each wave and before you return. Implementers never commit `backlog/` on their branches.
 
 ## 1. Start
 
@@ -56,6 +57,7 @@ For each implementer slot (`impl-1`, `impl-2`):
 2. Launch an **Agent** with `subagent_type: "maestro:implementer"`, the chosen `model`, and a brief containing:
    - task id and worktree path;
    - actor name (`impl-<n>`);
+   - the plugin root, in case `maestro` is not on PATH;
    - the contracts to read;
    - the checks to run;
    - what is out of scope.
@@ -65,14 +67,20 @@ Launch independent tasks together, in one message, in the foreground.
 ## 4. Review and integrate each returned task
 
 1. **Tests first.** Every acceptance criterion must have its named test, and the test must assert the behaviour, not the implementation. Then review the code against scope, contracts, ADRs and the project's `AGENTS.md` rules.
-2. **If changes are needed,** send focused corrections to the same implementer: `SendMessage` to its agent id, or a fresh implementer with the notes. This counts as one correction cycle. Optional improvements never block integration.
+2. **If changes are needed:**
+   - set the task back with `backlog task edit <id> -s Ready --append-notes "correction <n>: ..."`;
+   - send focused corrections to the same implementer (`SendMessage` to its agent id) or to a fresh implementer with the notes. The implementer claims the task again.
+
+   Each round counts as one correction cycle. Optional improvements never block integration.
 3. **To integrate:**
    - `git merge --no-ff impl-<n>` into the goal branch;
    - run the project's standard checks on the goal branch;
+   - save the implementer's final report as `.maestro/reports/task/<id>.md`;
    - `backlog task edit <id> -s Integrated` and check the satisfied criteria;
    - `maestro measure <id> --goal <goal-id> --agent-id <agent ids> --actor architect --rework <correction cycles>`;
-   - `maestro release <id> --actor impl-<n>`;
    - remove the worktree and its branch.
+
+   The implementer has already released the claim.
 4. **If the spec no longer holds** (code moved, criteria contradictory), the task goes back to you. Fix the spec, or return **blocked** if fixing it is a material change.
 
 Then plan the next wave from the real integrated code. Repeat until every GOAL criterion is met.

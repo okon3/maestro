@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // `maestro` command dispatcher (contract: docs/plugin-contracts.md section 6).
 // Exit codes: 0 success, 1 error, 2 refused operation (claim denied, failed check).
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +9,7 @@ import { pathToFileURL } from "node:url";
 import { gitCommonDir, loadConfig } from "./lib/config.mjs";
 import { appendEvent, readEvents } from "./lib/events.mjs";
 import { backlogVersion, editTask, listTasks, runTool, viewTask } from "./lib/backlog.mjs";
-import { branchExists, git, worktreeBranch, worktreePath } from "./lib/git.mjs";
+import { branchExists, git, refExists, worktreeBranch, worktreePath } from "./lib/git.mjs";
 
 class CliError extends Error {
   constructor(message, code = 1) {
@@ -131,6 +132,9 @@ const COMMANDS = {
     const wanted = config?.backlogVersion ?? "1.55.3";
     const have = backlogVersion(root ?? process.cwd());
     add("backlog", have === wanted, have ? `${have} (wanted ${wanted})` : `missing (wanted ${wanted})`, `npm i -g backlog.md@${wanted}`);
+    // Backlog.md runs its on_status_change hook with `sh -c`; without sh, task.status events are lost.
+    const sh = spawnSync("sh", ["-c", "exit 0"], { stdio: "ignore" });
+    add("sh", sh.status === 0, sh.status === 0 ? "available" : "not on PATH", "run Claude Code from Git Bash or add Git's usr\\bin to PATH (task.status events need it)", true);
     add("config", !!config, config ? "valid" : "invalid or not in a git repository", "fix .maestro/config.json");
     add("maestro-init", initialized, initialized ? "initialized" : ".maestro/config.json not found", "run the init skill", true);
     const failed = checks.filter((c) => !c.ok && !c.warn);
@@ -221,8 +225,11 @@ const COMMANDS = {
       return 2;
     }
     if (!branchExists(root, goalBranch)) {
-      if (!branchExists(root, config.mainBranch)) throw new CliError(`main branch "${config.mainBranch}" not found`);
-      git(root, ["branch", goalBranch, config.mainBranch]);
+      // After a fresh clone the goal branch may exist only on the remote: track it instead of restarting from main.
+      const remote = `origin/${goalBranch}`;
+      if (refExists(root, `refs/remotes/${remote}`)) git(root, ["branch", goalBranch, remote]);
+      else if (!branchExists(root, config.mainBranch)) throw new CliError(`main branch "${config.mainBranch}" not found`);
+      else git(root, ["branch", goalBranch, config.mainBranch]);
     }
     git(root, ["worktree", "add", "-q", "-b", name, path, goalBranch]);
     out(flags, { path, branch: name, base: goalBranch }, path);

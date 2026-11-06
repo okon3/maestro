@@ -178,3 +178,15 @@ test("bin_launchers_run_the_cli", () => {
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /usage: maestro/);
 });
+
+test("worktree_tracks_remote_goal_branch", () => {
+  const { dir, git, run } = setup();
+  git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "goal work");
+  const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: dir, encoding: "utf8" }).trim();
+  git("update-ref", "refs/remotes/origin/goal/TASK-7", sha);
+  git("reset", "-q", "--hard", "HEAD~1");
+  const r = run(["worktree", "impl-9", "--goal", "TASK-7"]);
+  assert.equal(r.status, 0, r.stderr);
+  const rev = execFileSync("git", ["rev-parse", "goal/TASK-7"], { cwd: dir, encoding: "utf8" }).trim();
+  assert.equal(rev, sha, "goal branch follows the remote, not main");
+});

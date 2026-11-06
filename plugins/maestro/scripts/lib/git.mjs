@@ -12,8 +12,13 @@ export function git(cwd, args) {
 }
 
 export function branchExists(cwd, branch) {
+  return refExists(cwd, `refs/heads/${branch}`);
+}
+
+/** True when a full ref (e.g. refs/remotes/origin/goal/TASK-3) exists. */
+export function refExists(cwd, ref) {
   try {
-    execFileSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`], { cwd, stdio: "ignore" });
+    execFileSync("git", ["show-ref", "--verify", "--quiet", ref], { cwd, stdio: "ignore" });
     return true;
   } catch {
     return false;
