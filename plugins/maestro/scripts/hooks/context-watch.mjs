@@ -1,5 +1,5 @@
 // UserPromptSubmit / PostToolUse: warn once per context band in the main session.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { contextUsage } from "../lib/context.mjs";
 import { appendEvent } from "../lib/events.mjs";
@@ -25,6 +25,23 @@ function writeState(root, state) {
   writeFileSync(join(dir, "context-bands.json"), JSON.stringify(state));
 }
 
+// Snapshot for the dashboard (contract: docs/dashboard-contract.md, Runtime). Written on every main-session run.
+function writeContextSnapshot(root, sessionId, percent, usage) {
+  const dir = join(root, ".maestro", "runtime");
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, "context.json");
+  const tmp = `${file}.${process.pid}.tmp`;
+  const snapshot = {
+    ts: new Date().toISOString(),
+    sessionId: sessionId || null,
+    percent,
+    contextTokens: usage.postCompactNoUsageYet ? 0 : usage.contextTokens,
+    window: usage.window,
+  };
+  writeFileSync(tmp, JSON.stringify(snapshot));
+  renameSync(tmp, file);
+}
+
 await runHook("context-watch", ({ input, root, config }) => {
   if (input.agent_id) return; // transcript_path in subagent hooks is the PM transcript
   if (!input.transcript_path || !existsSync(input.transcript_path)) return;
@@ -33,6 +50,7 @@ await runHook("context-watch", ({ input, root, config }) => {
   // After a compaction with no new message yet the old usage is stale: treat as empty.
   const percent = usage.postCompactNoUsageYet ? 0 : usage.percent;
   if (percent === null) return;
+  writeContextSnapshot(root, input.session_id, percent, usage);
 
   const state = readState(join(root, ".maestro", "runtime", "context-bands.json"));
   const sid = input.session_id || "unknown";
