@@ -180,8 +180,12 @@ function buildAgents(events, now) {
   const stops = new Map();
   for (const e of events) {
     if (!e.agentId) continue;
-    if (e.type === "agent.start" && !starts.has(e.agentId)) starts.set(e.agentId, e);
-    else if (e.type === "agent.stop") stops.set(e.agentId, e);
+    // A resumed agent (SendMessage) starts again under the same id: keep its first start for "since",
+    // and drop the earlier stop so it shows as running until it stops again.
+    if (e.type === "agent.start") {
+      if (!starts.has(e.agentId)) starts.set(e.agentId, e);
+      else stops.delete(e.agentId);
+    } else if (e.type === "agent.stop") stops.set(e.agentId, e);
   }
   const claims = events.filter((e) => e.type === "task.claim" && e.task).map((e) => ({ e, t: Date.parse(e.ts), used: false }));
   // Exact links first: task.measure lists the agent ids that worked on a task.

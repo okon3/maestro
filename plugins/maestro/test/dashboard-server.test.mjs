@@ -38,7 +38,7 @@ async function waitForSse(res, needle, timeoutMs) {
 
 test("server_serves_and_streams", async () => {
   const { dir } = tempProject();
-  const srv = await startServer({ root: dir, port: 0, publicDir: publicDir() });
+  const srv = await startServer({ root: dir, port: 0, publicDir: publicDir(), usageProbe: false });
   try {
     assert.equal(srv.server.address().address, "127.0.0.1");
     const base = `http://127.0.0.1:${srv.port}`;

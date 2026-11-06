@@ -260,3 +260,19 @@ test("state_pairs_finished_agent_by_release", () => {
   const by = Object.fromEntries(s.agents.map((a) => [a.agentId, [a.actor, a.task, a.state]]));
   assert.deepEqual(by, { A: ["impl-1", "TASK-1.1", "running"], B: ["impl-2", "TASK-1.2", "finished"] });
 });
+
+test("state_shows_resumed_agent_as_running", () => {
+  const s = buildState(
+    {
+      events: [
+        { ts: "2026-11-06T15:43:58Z", type: "agent.start", agentId: "A", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T15:44:05Z", type: "agent.bind", agentId: "A", actor: "impl-1", task: "TASK-1.1" },
+        { ts: "2026-11-06T15:52:25Z", type: "agent.stop", agentId: "A", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T15:52:48Z", type: "agent.start", agentId: "A", data: { agentType: "maestro:implementer" } }, // resumed
+      ],
+    },
+    new Date("2026-11-06T15:55:00Z"),
+  );
+  const a = s.agents[0];
+  assert.deepEqual([a.actor, a.task, a.state, a.since, a.until], ["impl-1", "TASK-1.1", "running", "2026-11-06T15:43:58Z", null]);
+});
