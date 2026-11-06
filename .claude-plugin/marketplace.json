@@ -1,0 +1,12 @@
+{
+  "name": "okon3",
+  "description": "Luca Regazzi's Claude Code plugins",
+  "owner": { "name": "Luca Regazzi", "url": "https://github.com/okon3" },
+  "plugins": [
+    {
+      "name": "maestro",
+      "source": "./plugins/maestro",
+      "description": "An autonomous software team: PM, architect, two implementers, exploratory QA and periodic code review, coordinated through Backlog.md and git."
+    }
+  ]
+}

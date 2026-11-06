@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "mainBranch": "master",
+  "goalBranchPrefix": "goal/",
+  "contextWindow": 1000000,
+  "contextBands": [50, 65, 80],
+  "usageBands": [85, 95],
+  "backlogVersion": "1.55.3",
+  "reviewEveryTasks": 15,
+  "language": "it"
+}
