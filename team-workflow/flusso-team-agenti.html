@@ -75,7 +75,7 @@
 <tr><td>GOAL in parallelo (Q3)</td><td>Ammessi quando sono indipendenti, ma <b>rinviati</b> a dopo il pilota (vedi D3).</td></tr>
 <tr><td>Modelli (Q5)</td><td>Sonnet di base, Opus per i task difficili, <b>mai Fable</b>. L'architetto sceglie modello ed <b>effort</b> per task: entrambi si impostano nella definizione dell'agente o al lancio. L'architetto stesso gira su Opus con effort <b>medio</b> (decisione 20, dopo il pilota: era il 35% del costo della 7C).</td></tr>
 <tr><td>Limiti (Q8)</td><td>Nessun tetto per i singoli agenti, ma protezione dai loop con un numero massimo di turni. Il PM sorveglia il proprio contesto e il consumo delle 5 ore e settimanale.</td></tr>
-<tr><td>Code review (Q9)</td><td>Ogni 15 task integrati oppure a fine GOAL, quello che arriva prima.</td></tr>
+<tr><td>Code review (Q9)</td><td>Ogni 15 task integrati (<code>reviewEveryTasks</code>), contando anche quelli della corsia veloce; il conteggio si controlla a fine GOAL e dopo ogni integrazione della corsia veloce. Conta i task, non i GOAL: la fine di un GOAL da sola non la fa scattare (decisione 19, che aggiorna la 9).</td></tr>
 <tr><td>Permessi (A2)</td><td>Gli agenti lavorano in modalità <code>auto</code>; se può comparire una richiesta di permesso, arriva all'owner. Nessun agente cambia modalità di permesso.</td></tr>
 <tr><td>Test (A3)</td><td>Autore dei test separato <b>rinviato</b>. Intanto l'implementatore scrive i test, ma l'architetto specifica i casi di accettazione (dato / quando / allora) che corrispondono 1:1 a test con nome, e rivede i test per primi.</td></tr>
 <tr><td>Lingua (A4)</td><td>File, comandi e codice del framework in inglese; dialogo con l'owner nella lingua del progetto.</td></tr>
@@ -145,7 +145,7 @@ flowchart TB
   PM -->|riprende con la scelta| A
   A -->|GOAL integrato in master| PM
   PM -->|insieme: tag qa/QA-n| QA[QA esplorativo]
-  PM -->|insieme, se dovuta: tag cr/CR-n| CR[Revisore]
+  PM -->|insieme, se dovuta<br/>ogni 15 task integrati: tag cr/CR-n| CR[Revisore]
   QA -->|rapporto| PM
   CR -->|rapporto| PM
   PM -->|una sola ondata di correzioni:<br/>difetti e rilievi come task| A
@@ -265,7 +265,7 @@ sequenceDiagram
 <ul>
   <li><b>Contro il bias dei test scritti da chi implementa:</b> l'architetto scrive i criteri come casi concreti (dato / quando / allora), ognuno legato a un test con nome. L'implementatore scrive i test e il codice; l'architetto rivede <b>prima i test</b>, poi il codice. La code review controlla anche la qualità dei test e il QA resta la rete finale indipendente. Un <b>autore dei test</b> separato è rinviato: si valuta dopo il pilota, guardando i costi.</li>
   <li><b>QA:</b> livelli <code>none</code>, <code>self-smoke</code> (l'implementatore apre la pagina), <code>checkpoint</code> (a fine GOAL o prima di un deploy) e <code>dedicated</code> (aree critiche). Missioni brevi e mirate: il pilota sulla 7B ha mostrato che una missione unica e ampia copre poco.</li>
-  <li><b>Code review periodica:</b> ogni 15 task o a fine GOAL. Rilievi in tre gradi: <i>violazione</i> (task prioritario), <i>debito</i> (in coda), <i>suggerimento</i> (annotato). Non blocca il lavoro in corso.</li>
+  <li><b>Code review periodica:</b> è dovuta quando dall'ultimo tag <code>cr/CR-n</code> si sono accumulati <code>reviewEveryTasks</code> task integrati (15 di base), compresi quelli della corsia veloce; la dashboard mostra il conteggio. Il PM lo controlla a fine GOAL e dopo ogni integrazione della corsia veloce; la fine di un GOAL da sola non basta. Rilievi in tre gradi: <i>violazione</i> (task prioritario), <i>debito</i> (in coda), <i>suggerimento</i> (annotato). Non blocca il lavoro in corso.</li>
   <li><b>Fine GOAL:</b> missioni QA e code review (se dovuta) partono insieme; i loro rilievi validi tornano all'architetto in <b>una sola ondata di correzioni</b>, mai inoltrati a un architetto che sta già correggendo. Poi un QA di riverifica sui difetti corretti (sezione 3).</li>
 </ul>
 </section>
