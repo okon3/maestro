@@ -289,10 +289,10 @@ sequenceDiagram
 
 <section id="dashboard">
 <h2>13. Dashboard live (per progetto, codice nel plugin)</h2>
-<p>Pagina locale in sola lettura servita da uno script Node del plugin, aperta con <code>/maestro:dashboard</code>. Legge il tracker (output JSON e aggiornamento in tempo reale di Backlog.md), il registro eventi, i rapporti, Git e la cache di consumo e contesto.</p>
+<p>Pagina locale in sola lettura servita da uno script Node del plugin, aperta con <code>/maestro:dashboard</code>. Legge i file del tracker, il registro eventi, i rapporti, Git e la cache di consumo e contesto, e si aggiorna da sola quando cambiano. La vista <b>Costi</b> mostra per GOAL e per task i token per modello, il tempo, i cicli di correzione e gli interventi dell'owner (misurati), con una stima in dollari a prezzi di listino, indicata come stima. Contratto tecnico: <code>docs/dashboard-contract.md</code>.</p>
 <div class="dash">
   <div class="top"><b>Quaderno territoriale</b><span class="pill">GOAL attivo: 7C Stato di fatto e progetto</span><span class="pill">master 1211ccf · 282 test ✓</span><span class="pill">code review: 9/15 task</span><span class="pill warn">PM contesto 48%</span><span class="pill">5h 62% · settimana 31%</span><span class="pill warn">1 decisione per l'owner</span></div>
-  <div class="tabs"><span class="on">Roadmap</span><span>Bacheca</span><span>Agenti</span><span>Decisioni</span><span>Rapporti</span></div>
+  <div class="tabs"><span class="on">Roadmap</span><span>Bacheca</span><span>Agenti</span><span>Decisioni</span><span>Rapporti</span><span>Costi</span></div>
   <div class="roadmap">
     <span class="ms">M7 Edifici</span><span class="goals"><span class="g done">7A ✓<small> sagome</small></span><span class="g done">7B ✓<small> pianta</small></span><span class="g active">7C ● <small>stato di fatto · 3/7 task</small></span><span class="g">7D <small>attività multifunzionali</small></span></span>
     <span class="ms">M8 Confronto</span><span class="goals"><span class="g">8A <small>rischi e vincoli</small></span><span class="g">8B <small>confronto scenari ← dipende da 7C</small></span><span class="g">8C <small>confronto tenute</small></span></span>
