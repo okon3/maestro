@@ -24,7 +24,24 @@ The installer is `node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs"`. It only create
 9. **Log and commit.** `maestro event maestro.init --actor pm`. Then commit, if the authority you just recorded allows local commits (otherwise ask): the created files, `backlog/`, `AGENTS.md`, `CLAUDE.md`, `.gitignore`, `.gitattributes`, `.maestro/`.
 10. **Next:** run `maestro doctor` again, then continue with the `maestro:pm` skill: agree the first GOAL with the owner.
 
-To refresh the `AGENTS.md` block after a plugin update, run steps 4, 5 and 9 only.
+If `AGENTS.md` or `CLAUDE.md` already held rules before the install, run the **rules audit** below after step 5.
+
+To refresh the `AGENTS.md` block after a plugin update, run steps 4 and 5, the rules audit (the plugin's rules may have changed) and step 9.
+
+## Rules audit: one source of truth
+
+Project files hold only the project's own rules and data. A rule that Maestro already states must not be repeated there: two copies drift apart and agents follow the wrong one.
+
+1. **Collect the project rules:** everything outside the Maestro markers in `AGENTS.md`, `CLAUDE.md` and the files they import (`@file` lines), one rule per line or bullet.
+2. **Collect what Maestro states:** the block between the markers, the agents (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`) and the skills (`${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md`): roles, delegation, tracker and `PLAN.md` ownership, commits, worktrees, checks and when they run, self-smoke and QA, code review, decisions, report language, push and deploy rules.
+3. **Classify each project rule.** The installer's `review` lines are hints, not the full list: read every rule.
+   - **Duplicate:** Maestro already says the same thing, or the rule restates something the `## Authority` or `## Checks` sections already hold. Remove it.
+   - **Conflict:** the rule and Maestro say different things (for example "every task runs a browser smoke" while Maestro asks for one only on QA criteria; "run checks from the repository root" while implementers must stay in their worktree; "reports in Italian" while agents write in English). The owner decides which one stays.
+   - **Project rule:** product facts, domain constraints, code style, module boundaries, project commands, authority, checks. Keep it. If part of a rule is a duplicate, keep only the project part.
+4. **Show the owner one table:** file and line, rule, class, what Maestro says (file), proposed action.
+   - Duplicates: one approval for the whole list.
+   - Conflicts: ask one by one, with the options "keep Maestro's rule" (remove or rewrite the project rule), "keep the project's rule" (it stays as an explicit project override) and, where useful, an adapted wording; give a recommendation. A project override of a plugin rule is a Maestro friction point: record it as a Maestro issue for the owner.
+5. **Apply** the agreed edits with Edit, outside the markers only, then commit them as one step (`AGENTS.md: remove rules Maestro already states`). In an adoption this happens on the `maestro-setup` branch with the rest.
 
 ## Adopt an existing project
 
@@ -34,7 +51,7 @@ Use this part when the repository already has its own way of working: an `AGENTS
 2. **Run the installer** (steps 4 and 5 above). Besides the usual lines it prints:
    - `Checks pre-filled ...` on the `AGENTS.md` line: the `## Checks` section now lists the commands found in `package.json` scripts, `.github/workflows/*.yml`, `.gitlab-ci.yml`, `Makefile`, `pyproject.toml`, with the runner (npm, pnpm, yarn, bun) taken from the lockfile. They are marked "owner to confirm". Go through them with the owner: drop what is not a gate, add what is missing, say how to start the app for QA. Fill `## Authority` from the rules the project already has (commits, push, deploy).
    - `review <file>:<line>  <reason>` lines: possible conflicts with Maestro. The installer never edits them.
-3. **Review each `review` line with the owner**, one by one, and record the choice: **remove** (the rule is replaced by Maestro's), **adapt** (rewrite it so it fits, for example "update `PLAN.md` in the same commit" becomes "update `PLAN.md` when a GOAL starts or closes"; "QA with a subagent after every feature" becomes "QA missions run by the PM on a tagged snapshot"), or **keep** (say why). Typical cases:
+3. **Run the rules audit** (see "Rules audit" above) on the project's rules. For each `review` line and each conflict, record the choice: **remove** (the rule is replaced by Maestro's), **adapt** (rewrite it so it fits, for example "update `PLAN.md` in the same commit" becomes "update `PLAN.md` when a GOAL starts or closes"; "QA with a subagent after every feature" becomes "QA missions run by the PM on a tagged snapshot"), or **keep** (say why). Typical cases:
    - another multi-agent or delegation strategy (headings or lines about subagents, delegation, orchestration): usually remove, since Maestro's roles define who delegates to whom;
    - a rule that every commit updates `PLAN.md`, or a mandatory QA or subagent step per feature;
    - a `.gitignore` entry such as `.claude/`, `.claude`, `/.claude/` that hides the whole folder: replace it with `.claude/worktrees/` and `.claude/settings.local.json` (the installer already appends those), so `.claude/settings.json` can be committed.

@@ -122,6 +122,7 @@
 </table>
 <p class="r">Pubblicare una versione significa fare push su <code>okon3/maestro</code>: lo autorizza l'owner. Durante lo sviluppo il plugin si prova in locale (<code>--plugin-dir</code>) senza pubblicarlo.</p>
 <p class="r">Il codice del framework si aggiorna in un solo posto. I progetti contengono solo dati e regole specifiche, cioè il proprio <code>AGENTS.md</code>.</p>
+<p class="r">Una sola fonte di verità: le regole del progetto non ripetono quelle di Maestro. <code>/maestro:init</code>, sia all'adozione sia quando aggiorna il blocco dopo un aggiornamento del plugin, confronta le regole del progetto (<code>AGENTS.md</code>, <code>CLAUDE.md</code> e i file che importano) con quelle di Maestro e le divide in tre gruppi: <b>doppioni</b> (Maestro dice già la stessa cosa: si tolgono, con un solo via libera dell'owner sull'elenco), <b>conflitti</b> (dicono cose diverse: l'owner sceglie quale regola resta, una per una, con una raccomandazione) e <b>regole del progetto</b> (restano).</p>
 </section>
 
 <section id="flusso">
