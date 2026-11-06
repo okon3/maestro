@@ -11,6 +11,12 @@
         "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/context-watch.mjs"], "timeout": 10 }]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Grep|Glob|Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/secret-guard.mjs"], "timeout": 10 }]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "*",

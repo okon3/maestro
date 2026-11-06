@@ -98,6 +98,7 @@ test("hooks_noop_without_config", () => {
     ["pre-compact", { trigger: "manual" }],
     ["agent-events", { hook_event_name: "SubagentStart", agent_id: "a", agent_type: "x" }],
     ["stop-failure", { error: "rate_limit" }],
+    ["secret-guard", { agent_id: "a", tool_name: "Read", tool_input: { file_path: ".env" } }],
   ]) {
     const r = run(script, { cwd: dir, ...extra });
     assert.equal(r.status, 0, script);
@@ -139,6 +140,60 @@ test("stop-failure logs limit.hit", () => {
   const ev = readEvents(dir)[0];
   assert.equal(ev.type, "limit.hit");
   assert.deepEqual(ev.data, { error: "rate_limit" });
+});
+
+const guard = (dir, tool_name, tool_input, extra = { agent_id: "ag1", agent_type: "maestro:implementer" }) =>
+  run("secret-guard", { cwd: dir, hook_event_name: "PreToolUse", tool_name, tool_input, ...extra });
+
+const denied = (r) => {
+  assert.equal(r.status, 0);
+  if (!r.stdout) return false;
+  const out = JSON.parse(r.stdout).hookSpecificOutput;
+  assert.equal(out.hookEventName, "PreToolUse");
+  assert.match(out.permissionDecisionReason, /secret guard/);
+  return out.permissionDecision === "deny";
+};
+
+test("secret_guard_blocks_subagent_reads", () => {
+  const dir = tempRepo({ config: { secretPaths: ["config/credentials.yml", "secrets/**"] } });
+  for (const [tool, input] of [
+    ["Read", { file_path: join(dir, ".env") }],
+    ["Read", { file_path: "C:\\work\\app\\.env.local" }],
+    ["Edit", { file_path: "certs/server.pem" }],
+    ["Write", { file_path: "tls/server.key" }],
+    ["Read", { file_path: "/home/u/.ssh/id_rsa" }],
+    ["Read", { file_path: "/home/u/.ssh/id_ed25519.pub" }],
+    ["Read", { file_path: join(dir, ".claude", "worktrees", "impl-1", "config", "credentials.yml") }],
+    ["Read", { file_path: "secrets/prod/db.json" }],
+    ["Grep", { pattern: "PASSWORD", path: ".env.production" }],
+    ["Grep", { pattern: "PASSWORD", glob: "*.pem" }],
+    ["Glob", { pattern: "secrets/*" }],
+    ["Bash", { command: "cat .env | grep KEY" }],
+    ["Bash", { command: "node -e \"require('fs').readFileSync('config/credentials.yml')\"" }],
+    ["PowerShell", { command: "Get-Content -Path .\\.env.local" }],
+  ]) {
+    assert.equal(denied(guard(dir, tool, input)), true, `${tool} ${JSON.stringify(input)}`);
+  }
+});
+
+test("secret_guard_allows_main_session_and_env_example", () => {
+  const dir = tempRepo({ config: { secretPaths: ["secrets/**"] } });
+  // Main session (no agent_id): never blocked.
+  assert.equal(denied(guard(dir, "Read", { file_path: ".env" }, {})), false);
+  assert.equal(denied(guard(dir, "Bash", { command: "cat secrets/a.txt" }, {})), false);
+  // Subagent: templates and ordinary files pass.
+  for (const [tool, input] of [
+    ["Read", { file_path: ".env.example" }],
+    ["Bash", { command: "cat .env.example && echo $NODE_ENV" }],
+    ["Read", { file_path: "src/config/env.ts" }],
+    ["Grep", { pattern: "\\.env|process\\.env", path: "src" }],
+    ["Glob", { pattern: "**/*.ts" }],
+    ["Bash", { command: "npm test" }],
+  ]) {
+    assert.equal(denied(guard(dir, tool, input)), false, `${tool} ${JSON.stringify(input)}`);
+  }
+  // Without Maestro the hook is a no-op even for subagents.
+  assert.equal(denied(guard(tempRepo({ init: false }), "Read", { file_path: ".env" })), false);
 });
 
 test("hooks_never_throw", () => {
