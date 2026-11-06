@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Install Maestro's project files (used by the init skill). Node built-ins only, idempotent:
-// creates missing files from templates/, appends missing ignore/attributes lines, inserts or refreshes
+// creates missing files from templates/ (plus an empty .maestro/events.jsonl and .maestro/reports/), appends
+// missing ignore/attributes lines (including LF line endings for backlog/ and .maestro/), inserts or refreshes
 // the marked AGENTS.md block (text outside the markers is never touched), proposes `worktreeSetup` for Node
 // projects, and sets up Backlog.md.
 //
@@ -26,7 +27,9 @@ export const DEFINITION_OF_DONE = ["Named test per acceptance criterion passes",
 export const STATUS_HOOK =
   'command -v maestro >/dev/null 2>&1 || exit 0; maestro event task.status --task "$TASK_ID" --data "{\\"from\\":\\"$OLD_STATUS\\",\\"to\\":\\"$NEW_STATUS\\"}"';
 
-const BACKLOG_CONFIGS = [join("backlog", "config.yml"), join(".backlog", "config.yml"), "backlog.config.yml"];
+const EVENTS_PATH = ".maestro/events.jsonl";
+const REPORTS_DIR = ".maestro/reports";
+const BACKLOG_CONFIGS =[join("backlog", "config.yml"), join(".backlog", "config.yml"), "backlog.config.yml"];
 const HOOK_KEYS = ["onStatusChange", "on_status_change"];
 
 const template = (name) => readFileSync(join(TEMPLATES, name), "utf8");
@@ -211,7 +214,18 @@ export function init({ cwd = process.cwd(), dryRun = false, project, mainBranch,
     } else act(path, "unchanged");
   }
 
-  // Ignore and attributes lines.
+  // The event log and the reports folder exist from the start, so the first readers and writers find them.
+  // The folder holds a .gitkeep so it travels with a clone before the first report.
+  if (read(EVENTS_PATH) === null) {
+    write(EVENTS_PATH, "");
+    act(EVENTS_PATH, "create", "empty event log");
+  } else act(EVENTS_PATH, "unchanged");
+  if (!existsSync(abs(REPORTS_DIR))) {
+    write(`${REPORTS_DIR}/.gitkeep`, "");
+    act(`${REPORTS_DIR}/`, "create");
+  } else act(`${REPORTS_DIR}/`, "unchanged");
+
+  // Ignore and attributes lines (.gitattributes: union merge of the event log, LF for backlog/ and .maestro/).
   for (const [path, tpl] of [[".gitignore", "gitignore"], [".gitattributes", "gitattributes"]]) {
     const current = read(path);
     const { text, added } = mergeLines(current ?? "", template(tpl).split(/\r?\n/));

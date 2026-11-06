@@ -49,6 +49,8 @@ Accounts and data: <...>
 
 ## 4. Triage
 
+First check that each mission's report file exists at its `Report:` path. If one is missing, write it yourself from the explorer's returned text, add a line `Note: written by the PM from the explorer's final message (the explorer did not write the file)`, and mention it in the triage file.
+
 For each finding in each report:
 
 1. Map its area to the code paths that implement it (task scopes, the architect's QA HINTS).

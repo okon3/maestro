@@ -225,3 +225,35 @@ test("init_proposes_node_modules_link", () => {
   plain.run();
   assert.equal("worktreeSetup" in JSON.parse(read(plain.dir, ".maestro/config.json")), false);
 });
+
+test("init_creates_event_log_reports_and_eol_rules", () => {
+  // Fresh project: empty event log, reports folder, LF rules for backlog/ and .maestro/, each an approval line.
+  const fresh = setup();
+  const dry = fresh.run("--dry-run");
+  assert.match(dry.stdout, /would create\s+\.maestro\/events\.jsonl/);
+  assert.match(dry.stdout, /would create\s+\.maestro\/reports\//);
+  assert.match(dry.stdout, /would create\s+\.gitattributes\s+\(.*backlog\/\*\* text=auto eol=lf, \.maestro\/\*\* text=auto eol=lf/);
+  assert.equal(fresh.run().status, 0);
+  assert.equal(read(fresh.dir, ".maestro/events.jsonl"), "");
+  assert.ok(existsSync(join(fresh.dir, ".maestro", "reports", ".gitkeep")), "reports folder travels with a clone");
+  const attrs = read(fresh.dir, ".gitattributes");
+  assert.match(attrs, /^backlog\/\*\* text=auto eol=lf$/m);
+  assert.match(attrs, /^\.maestro\/\*\* text=auto eol=lf$/m);
+  const attr = (path, name) => execFileSync("git", ["check-attr", name, "--", path], { cwd: fresh.dir, encoding: "utf8" }).trim().split(": ").pop();
+  assert.equal(attr("backlog/tasks/task-1.md", "eol"), "lf");
+  assert.equal(attr(".maestro/handoff.md", "eol"), "lf");
+  assert.equal(attr(".maestro/events.jsonl", "merge"), "union");
+  assert.equal(attr(".maestro/reports/qa/shot.png", "text"), "auto", "binaries are detected, not converted");
+
+  // Existing project: its attributes and its event log are kept; only the missing lines are appended; idempotent.
+  const existing = setup({ ".gitattributes": "* text=auto\r\n.maestro/events.jsonl merge=union\r\n", ".maestro/events.jsonl": '{"type":"x"}\n' });
+  const r = existing.run();
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.match(r.stdout, /^append\s+\.gitattributes\s+\(backlog\/\*\* text=auto eol=lf, \.maestro\/\*\* text=auto eol=lf\)$/m);
+  assert.match(r.stdout, /^unchanged\s+\.maestro\/events\.jsonl$/m);
+  assert.equal(read(existing.dir, ".maestro/events.jsonl"), '{"type":"x"}\n');
+  assert.ok(read(existing.dir, ".gitattributes").startsWith("* text=auto\r\n.maestro/events.jsonl merge=union\r\n"));
+  const again = existing.run();
+  assert.match(again.stdout, /^unchanged\s+\.gitattributes$/m);
+  assert.match(again.stdout, /^unchanged\s+\.maestro\/reports\/$/m);
+});
