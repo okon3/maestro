@@ -82,6 +82,7 @@ Event types (wave 1):
 | `context.band` | context hook, once per band crossing | `{percent, band}` |
 | `goal.start`, `session.pause`, `session.resume`, `maestro.init` | PM skills, through `maestro event` | free-form |
 | `qa.start`, `qa.freeze`, `qa.done`, `review.start`, `review.done`, `decision.recorded` | PM skills, through `maestro event` | free-form |
+| `decision.ruling` | an implementer or the architect, through `maestro event ... --task <id> --actor <name>`, when it settles a minor (non-material) ambiguity itself | `{question, ruling}` |
 
 ## 5. Usage record (measurement, decision-17)
 
