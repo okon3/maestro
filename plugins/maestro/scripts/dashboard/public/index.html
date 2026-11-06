@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maestro dashboard</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/app.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<a class="skip" href="#view">Skip to content</a>
+<header class="masthead" id="masthead">
+  <div class="masthead-top">
+    <h1 class="project" id="project">Maestro</h1>
+    <p class="conn" id="conn" role="status" aria-live="polite"><span class="conn-dot"></span><span class="conn-text">Connecting</span></p>
+  </div>
+  <div class="gauges" id="gauges"></div>
+</header>
+<nav class="tabs" id="tabs" role="tablist" aria-label="Views"></nav>
+<div class="layout">
+  <main class="view" id="view" tabindex="-1"></main>
+  <aside class="feed" id="feed" aria-label="Recent events" data-keep-scroll="feed"></aside>
+</div>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+</body>
+</html>
