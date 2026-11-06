@@ -1,53 +1,44 @@
 # Maestro handoff
 
-Rewritten by the PM at pauses, context bands and shift changes. Last update: 2026-11-06 ~22:55 local, by the second Maestro PM session.
+Rewritten by the PM at pauses, context bands and shift changes. Last update: 2026-11-07 ~00:00 local, by the second Maestro PM session.
 
 ## Now
 
-- **GOAL M-4 (pilot on Agriturismo 7C): Done and archived.**
-  - Review: `research/m4-pilot-review.html`.
-  - 7C against 7B:
-    - active time 1 h 55 min against 1 h 27 min;
-    - cost $53.16 against about $30.5, at API prices;
-    - 0 critical or major defects in both;
-    - the code review found 3 issues that QA cannot see.
-  - The architect was 35% of the cost.
-- **Owner decisions (2026-11-06):**
-  - follow-up work goes in GOAL **M-6** (TASK-8, approved, To Do, 11 subtasks; TASK-8.4 usage gate is high priority);
-  - decision-19: fast lane for small fixes;
-  - decision-20: architect on Opus at **medium** effort. Already applied in `agents/architect.md` (`cde1ba0`).
-- **Published this session** on `okon3/maestro`:
-  - `/maestro:init` rules audit, so project rules never repeat Maestro's (TASK-5.1);
-  - dashboard: a batch implementer is counted once, with its cost split among its tasks;
-  - dashboard: folded YAML titles are read correctly;
-  - dashboard: agents killed by a usage limit are no longer "running" and are counted in the cost by role.
-- **Agriturismo:**
-  - on plugin `bbee867`;
-  - dashboard at http://127.0.0.1:4517/ restarted on that version;
-  - GOAL 7C (TASK-1) and 7C-fix (TASK-2) closed by the pilot PM;
-  - no GOAL in progress.
-- **Verified in the lab** (`maestro-lab/bg-nesting-2`, `research/claude-code-capabilities.md`): background agents launched by a subagent report to the main session. That is why the architect must launch implementers in the foreground.
+- **GOAL M-6 (TASK-8): every task integrated and published except TASK-8.1.** main `9f58e25`, 111 tests.
+  - Waves done:
+    - 8.11 dashboard: blocking items vs open questions, agent model on the Board, missions;
+    - 8.5 ready worktrees;
+    - 8.4 and 8.7 usage gate and salvage;
+    - 8.6 and 8.9 parallel GOAL end, PM stays on main, cleanup, fast lane, batches;
+    - 8.8 and 8.10 reports from measure, CLI polish;
+    - 8.12 no long-lived tags, QA and review in the background;
+    - 8.2 and 8.3 project language and playbook.
+  - Decisions 19 (fast lane), 20 (architect medium effort) and 21 (no long-lived tags).
+  - Tags deleted in this repository, both local and on GitHub.
+- **TASK-8.1 waits for Agriturismo GOAL 8A (TASK-3)**, which is In Progress on `goal/TASK-3` with the architect working. When it closes:
+  1. update the plugin in Agriturismo and restart its dashboard;
+  2. clean its AGENTS.md as decided (see TASK-8.1 and the archived TASK-5.2);
+  3. set `frameworkFeedback: true` in its `.maestro/config.json` (pilot project);
+  4. delete its local tags (`qa/QA-1`, `qa/QA-2`, `cr/CR-1`, `done/TASK-1`, `done/TASK-2`);
+  5. close M-6.
+- **Idea parked by the owner** ("lasciamo così per ora", 2026-11-06): the PM as dispatcher. The PM would launch implementers itself in the background and call the architect only briefly, to plan a wave or to review and integrate a task. This removes the wave barrier at the cost of a larger PM context. If it comes back, prototype it in the lab and compare it with the current mode (it pairs well with M-5).
 
 ## Running agents
 
-- The Agriturismo PM (Paseo `aa65f76a-22bb-4f23-8e21-e38c3af0b486`) is idle after closing TASK-2. Send it prompts only when the owner asks.
+- The Agriturismo PM (Paseo `aa65f76a-22bb-4f23-8e21-e38c3af0b486`) is running GOAL 8A. Send it prompts only when the owner asks.
 
 ## Waiting for the owner
 
-- Whether to start M-6 now. TASK-8.4 (usage gate) should come first, so that the next Agriturismo GOAL cannot run into the limit again.
-- 7B deploy in Agriturismo is still pending (the owner runs `npm run deploy`).
+- Nothing blocking. The 7B deploy in Agriturismo is still pending (the owner runs `npm run deploy`).
 
 ## Next action
 
-1. When the owner says go, start M-6 in waves:
-   - wave 1: 8.4 usage gate, 8.5 ready worktrees, 8.6 parallel GOAL end;
-   - then the rest.
-   - TASK-8.1 (Agriturismo `AGENTS.md`) can run any time no Agriturismo GOAL is active.
-2. Spec: add the fast lane (decision-19) to `team-workflow/flusso-team-agenti.html` in the same commit as TASK-8.9.
+1. Follow 8A. When it closes, do TASK-8.1 and close M-6: set TASK-8 Done, archive it, add a history line to PLAN.md, and record the commit in a `goal.done` event (no tag).
+2. Then M-5: prepare a proposal for the owner in HTML.
 
 ## Notes
 
-- Tests: `cd plugins/maestro && node --test` (69). Validate: `claude plugin validate plugins/maestro`. The plugin-directory check reports a missing LICENSE; that only matters for a directory submission.
+- Tests: `cd plugins/maestro && node --test` (111). Validate: `claude plugin validate plugins/maestro`. The plugin-directory check reports a missing LICENSE; that only matters for a directory submission.
 - Updating Agriturismo:
   1. run `claude plugin marketplace update okon3 && claude plugin update maestro@okon3` from `E:\Projects\Agriturismo`;
   2. restart the dashboard with `node <cache>/<new sha>/scripts/cli.mjs dashboard --stop`, then `dashboard --no-open`;
