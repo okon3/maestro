@@ -224,7 +224,7 @@ function ruleFlags(file, text) {
     if (isHeading) flaggedHeading = false;
     const add = (reason) => flags.push({ file, line: i + 1, reason, text: excerpt(line) });
     if (PLAN_COMMIT.test(line) && PLAN_VERB.test(line) && /commit/i.test(line)) return add("rule makes commits update PLAN.md; with Maestro the tracker holds the state and PLAN.md stays short");
-    if (QA_RULE.test(line) && EVERY.test(line) && !isHeading) return add("mandatory QA per feature; with Maestro QA is a black-box mission on a tagged snapshot run on the PM's call");
+    if (QA_RULE.test(line) && EVERY.test(line) && !isHeading) return add("mandatory QA per feature; with Maestro QA is a black-box mission on a snapshot run on the PM's call");
     if (MULTI_AGENT.test(line)) {
       if (isHeading) {
         flaggedHeading = true;
