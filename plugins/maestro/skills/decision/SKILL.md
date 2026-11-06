@@ -17,7 +17,7 @@ Use this for **material** decisions the owner took (PM skill section 3). Technic
    - the date and any limits (scope, expiry, conditions).
    If the choice or the reason is unclear, ask the owner once before recording.
 2. **Create the decision:** `backlog decision create "$ARGUMENTS" -s accepted --plain`. Note the id (`decision-<n>`) and the file under `backlog/decisions/`.
-3. **Fill the file** (the only tracker file you edit by hand: the CLI has no body options for decisions). Write in English under the existing headings:
+3. **Fill the file** (the only tracker file you edit by hand: the CLI has no body options for decisions). Write under the existing headings, which stay in English, in the project's language as its `AGENTS.md` states (English if it states none):
    - `## Context`: the question, what triggered it, constraints.
    - `## Decision`: options considered (one line each), the chosen one, why, who decided and when.
    - `## Consequences`: what changes, what is now allowed or excluded, follow-ups.

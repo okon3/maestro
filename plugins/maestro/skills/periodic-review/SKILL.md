@@ -36,6 +36,8 @@ Report: <main checkout, absolute>/.maestro/reports/review/CR-<n>.md
 Project checks: <from AGENTS.md>
 ```
 
+**Playbook.** Add to the brief a `Playbook:` line with the `## reviewer` section of `.maestro/playbook.md`, pasted as it is (leave it out when the section is empty). When the reviewer returns, log the `LEARNINGS:` of its last message (PM skill section 11, role `reviewer`).
+
 ## 3. Turn findings into work
 
 Read the report. Check that each finding is concrete (file, symbol, failure scenario); drop the ones that are not, and say why in the GOAL notes. Then:

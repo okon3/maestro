@@ -35,6 +35,18 @@ test("loadConfig merges the project file over defaults, BOM tolerated", () => {
   assert.equal(config.contextWindow, DEFAULTS.contextWindow);
 });
 
+test("config_framework_feedback_defaults_to_false", () => {
+  assert.equal(DEFAULTS.frameworkFeedback, false);
+  const { dir } = tempRepo();
+  assert.equal(loadConfig(dir).config.frameworkFeedback, false, "not initialized");
+  mkdirSync(join(dir, ".maestro"));
+  const file = join(dir, ".maestro", "config.json");
+  writeFileSync(file, JSON.stringify({ mainBranch: "main" }));
+  assert.equal(loadConfig(dir).config.frameworkFeedback, false, "config without the key");
+  writeFileSync(file, JSON.stringify({ frameworkFeedback: true }));
+  assert.equal(loadConfig(dir).config.frameworkFeedback, true, "opt-in honoured");
+});
+
 test("loadConfig rejects a non-object config", () => {
   const { dir } = tempRepo();
   mkdirSync(join(dir, ".maestro"));
