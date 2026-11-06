@@ -23,6 +23,7 @@ Owned by the M-3 architect. Design intent: `team-workflow/flusso-team-agenti.htm
 | Reports | `.maestro/reports/**/*.md`: kind (`task`, `qa`, `review`), id from the file name, mtime, first heading or line. |
 | Git | main branch tip (short sha and subject), current branch, tags `done/*`, `qa/QA-*`, `cr/CR-*` with dates. |
 | Runtime | `.maestro/runtime/usage.json` (`{ts, fiveHour, sevenDay, resetsAt}`) and `.maestro/runtime/context.json` (`{ts, sessionId, percent, contextTokens, window}`, written by the context-watch hook on every run in the main session). |
+| PM sessions | `.maestro/runtime/pm-sessions.json` (`{sessions: [{sessionId, transcriptPath, firstSeen, lastSeen}]}`), written by the context-watch hook: one entry per main-session transcript, added or updated on every run. `loadState` reads each listed transcript that still exists with `usageSummary(path, {from, to})` for the PM row of a GOAL window, and caches the result in memory by path, size, mtime and window. |
 | Prices | `scripts/dashboard/prices.mjs`: list prices per million tokens for each model family (input, output, cache read, cache write), with source URL and date. Config `prices` in `.maestro/config.json` overrides them. |
 
 ## `GET /api/state`
@@ -57,7 +58,11 @@ Owned by the M-3 architect. Design intent: `team-workflow/flusso-team-agenti.htm
                  "ownerInterventions": 0,
                  "models": { "claude-sonnet-5-5": { "input": 34, "output": 33352, "cacheRead": 892551, "cacheWrite": 75324 } },
                  "usd": 1.23 } ],
-    "goals": [ { "goal": "TASK-1", "title": "...", "tasks": 3, "wallMs": 0, "usd": 0, "models": {} } ],
+    "goals": [ { "goal": "TASK-1", "title": "...", "tasks": 3, "wallMs": 0, "usd": 0, "models": {},
+                 "window": { "from": "ISO", "to": "ISO or null", "open": false },
+                 "breakdown": [ { "role": "pm", "agents": 1, "running": 0, "models": {}, "usd": 0.12 },
+                                { "role": "architect", "agents": 1, "running": 1, "models": {}, "usd": null } ],
+                 "total": { "models": {}, "usd": 6.65 } } ],
     "unpriced": ["model-id-without-price"]
   },
   "events": [ "last 50 events, newest first" ]
@@ -73,6 +78,10 @@ Rules:
 - **Usage refresh:** while at least one page is connected, the server runs `maestro usage --probe` when the last sample is older than 10 minutes (checked every minute). Each probe is one minimal `claude -p` call on the cheapest model. A resumed agent (a second `agent.start` with the same id) counts as running again.
 - **Stale:** `context` and `usage` are stale when older than 30 minutes.
 - **USD:** `sum(tokens × price / 1e6)` over the models that have a price, rounded to cents; `null` only when no model has a price. Unpriced models are listed in `costs.unpriced` and the page flags such sums as partial. A GOAL sums its tasks the same way.
+- **Full GOAL cost:** a GOAL window runs from the first `goal.approved` or `goal.start` event (goal id in `goal`), so the PM's work to agree the GOAL counts, to the next `goal.done` of the same goal, else to now (`open: true`, `to: null`). Every GOAL with a window is listed in `costs.goals`, also without measured tasks (title from the tracker); GOALs from older data with task measures but no `goal.start` keep only the per-task fields. Newest window first. `breakdown` always has the roles `pm`, `architect`, `implementer`, `qa`, `reviewer`, `other` in this order:
+  - subagents count when their first `agent.start` is in the window; the role comes from `data.agentType` (`maestro:architect`, `maestro:implementer`, `maestro:qa-explorer`, `maestro:code-reviewer`, anything else is `other`). Their tokens are the `data.usage` of their latest `agent.stop`: usage is cumulative over the agent transcript, so a resumed agent counts once. An agent with no stop after its latest start (and that start less than 12 hours old, as in the Agents view) counts in `running` and adds no tokens until it stops.
+  - `pm`: the PM transcripts of `pm-sessions.json` summed inside the window (`agents` = sessions with messages in it). For an open window the end is rounded down to the minute so the cache keeps working. With no PM session known, `agents` is 0 and `note` says why.
+  - `total` sums the breakdown; `usd` follows the USD rule below. The per-task fields (`tasks`, `wallMs`, `models`, `usd` from `task.measure`) are unchanged and their implementer work is already inside the breakdown.
 - **Agents `state`:** `running` or `finished`. `actor` and `task` are null when no claim follows the start (architect, QA, reviewer).
 - **Extra top-level fields:** `git: {branch, tags}` and `warnings` (files skipped while parsing).
 - **Caching:** every response carries `cache-control: no-store`.
@@ -94,6 +103,6 @@ Header (section above), then tabs:
 - Agents: running and recent.
 - Decisions.
 - Reports: list and Markdown viewer.
-- Costs: per GOAL and per task. Tokens by model and wall time are measured. USD is labelled as a list-price estimate.
+- Costs: per GOAL, first the full cost (estimated USD, the window, a table by role with agents, tokens and USD, a note when agents are still running), then the measured tasks; then per task. Tokens by model and wall time are measured. USD is labelled as a list-price estimate.
 
 There is also a short event feed. The UI text is in English. The page works offline from `localhost` and uses a desktop viewport.

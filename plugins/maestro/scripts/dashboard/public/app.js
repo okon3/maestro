@@ -708,9 +708,9 @@ function renderCosts(s) {
   const goals = Array.isArray(c.goals) ? c.goals : [];
   const unpriced = new Set(Array.isArray(c.unpriced) ? c.unpriced : []);
   if (!tasks.length && !goals.length) {
-    return empty("No measured tasks yet", "The architect records tokens, wall time, rework and owner interventions when a task is integrated (<code>maestro measure</code>). Costs appear here after the first one.");
+    return empty("No costs yet", "A GOAL's full cost appears once the PM starts it (<code>goal.start</code>); the architect also records tokens, wall time, rework and owner interventions per task when it is integrated (<code>maestro measure</code>).");
   }
-  const note = `<div class="estimate-note"><p><strong>USD is a list-price estimate</strong>, not a bill: tokens × list price per million tokens${c.pricesSource ? `, prices from <span class="src">${esc(c.pricesSource)}</span>` : ""}. Tokens, wall time, rework and interventions are measured.</p>${
+  const note = `<div class="estimate-note"><p><strong>USD is a list-price estimate</strong>, not a bill: tokens × list price per million tokens${c.pricesSource ? `, prices from <span class="src">${esc(c.pricesSource)}</span>` : ""}. Tokens, wall time, rework and interventions are measured.</p><p>The full cost of a GOAL counts everything that ran between its start and its close: the PM session in that window and every agent started in it, with each agent's tokens as of its last stop.</p>${
     unpriced.size
       ? `<p class="unpriced-note"><span class="flag">unpriced</span> No list price for ${[...unpriced].map((m) => `<code>${esc(m)}</code>`).join(", ")}: its tokens are counted, its cost is not, and totals that include it show no USD.</p>`
       : ""
@@ -740,22 +740,84 @@ function modelLabel(id, unpriced) {
   return `<span class="model" title="${esc(id)}">${esc(modelName(id))}</span>${unpriced.has(id) ? ` <span class="flag">unpriced</span>` : ""}`;
 }
 
+// Roles of the full GOAL cost, in the order the work flows (keys match costs.goals[].breakdown[].role).
+const COST_ROLES = [
+  ["pm", "PM", "pm"],
+  ["architect", "Architect", "arch"],
+  ["implementer", "Implementers", "impl"],
+  ["qa", "QA", "qa"],
+  ["reviewer", "Reviewer", "rev"],
+  ["other", "Other", "sys"],
+];
+
 function goalCost(g, extra, unpriced) {
+  const full = Array.isArray(g.breakdown) ? fullGoalCost(g, unpriced) : "";
   const models = Object.entries(g.models || {});
+  const tasks = Number(g.tasks) || 0;
   const rows = models
     .map(([id, u]) => `<tr><th scope="row">${modelLabel(id, unpriced)}</th>${tokenCells(u)}</tr>`)
     .join("");
-  return `<article class="goal-cost">
-    <header><h3>${idEl(g.goal)} ${esc(g.title)}</h3></header>
-    <dl class="stats">
+  const measured = tasks
+    ? `<dl class="stats">
       <div><dt>Est. USD</dt><dd class="usd">${usdCell(g.usd, g.models, unpriced)}</dd></div>
-      <div><dt>Tasks measured</dt><dd>${Number(g.tasks) || 0}</dd></div>
+      <div><dt>Tasks measured</dt><dd>${tasks}</dd></div>
       <div><dt>Wall time</dt><dd>${fmtDuration(g.wallMs)}</dd></div>
       <div><dt>Tokens</dt><dd>${fmtTokens(totalTokens(g.models))}</dd></div>
       ${extra ? `<div><dt>Rework cycles</dt><dd>${extra.rework}</dd></div><div><dt title="Owner interventions">Interventions</dt><dd>${extra.owner}</dd></div>` : ""}
     </dl>
-    ${models.length ? `<table class="data compact"><thead><tr><th scope="col">Model</th>${tokenHeads()}</tr></thead><tbody>${rows}</tbody></table>` : `<p class="quiet">No token data.</p>`}
+    ${models.length ? `<table class="data compact"><thead><tr><th scope="col">Model</th>${tokenHeads()}</tr></thead><tbody>${rows}</tbody></table>` : `<p class="quiet">No token data.</p>`}`
+    : `<p class="quiet">No task measured yet: the architect measures each task when it is integrated.</p>`;
+  return `<article class="goal-cost${full ? " has-full" : ""}">
+    <header><h3>${idEl(g.goal)} ${esc(g.title)}</h3>${g.window ? goalWindowText(g.window) : ""}</header>
+    ${full}
+    ${full ? `<h4 class="cost-sub">Measured tasks <span class="quiet">implementer work recorded with <code>maestro measure</code>, already included above</span></h4>` : ""}
+    ${measured}
   </article>`;
+}
+
+function goalWindowText(w) {
+  const from = `${esc(clockTime(w.from))} <span class="quiet">${esc(dayLabel(w.from))}</span>`;
+  const end = w.open
+    ? `<span class="open-badge">open</span> running for ${timeEl(w.from, "since")}`
+    : `closed ${esc(clockTime(w.to))} <span class="quiet">${esc(dayLabel(w.to))}</span>, took ${fmtDuration(toMs(w.to) - toMs(w.from))}`;
+  return `<p class="goal-window" title="${esc(`${absTime(w.from)} → ${w.open ? "now" : absTime(w.to)}`)}">Started ${from} · ${end}</p>`;
+}
+
+function fullGoalCost(g, unpriced) {
+  const byRole = new Map(g.breakdown.map((r) => [r.role, r]));
+  const total = g.total || {};
+  const agents = g.breakdown.reduce((n, r) => n + (r.role === "pm" ? 0 : Number(r.agents) || 0), 0);
+  const running = g.breakdown.reduce((n, r) => n + (Number(r.running) || 0), 0);
+  const rows = COST_ROLES.filter(([key]) => byRole.has(key) && (key !== "other" || byRole.get(key).agents))
+    .map(([key, label, dot]) => {
+      const r = byRole.get(key);
+      const has = Object.keys(r.models || {}).length > 0;
+      const count = key === "pm" ? `${Number(r.agents) || 0}<span class="quiet"> ${(Number(r.agents) || 0) === 1 ? "session" : "sessions"}</span>` : String(Number(r.agents) || 0);
+      const run = Number(r.running) || 0;
+      const usd = has ? usdCell(r.usd, r.models, unpriced) : run ? `<span class="quiet">pending</span>` : "–";
+      return `<tr><th scope="row"><span class="role-dot r-${dot}"></span>${esc(label)}${run ? ` <span class="run-count" title="Still running: counted when it finishes">${run} running</span>` : ""}</th><td class="num">${count}</td>${
+        has ? tokenCells(totalOf(r.models)) : `<td colspan="${TOKEN_COLUMNS.length}" class="quiet">${esc(r.note || (run ? "running, tokens counted when it finishes" : "none in this GOAL"))}</td>`
+      }<td class="num usd">${usd}</td></tr>`;
+    })
+    .join("");
+  const notes = running ? `<p class="cost-note">${plural(running, "agent")} still running: counted when ${running === 1 ? "it finishes" : "they finish"}.</p>` : "";
+  return `<div class="full-cost">
+    <dl class="stats">
+      <div><dt>Full cost, est. USD</dt><dd class="usd big">${usdCell(total.usd, total.models, unpriced)}</dd></div>
+      <div><dt>Agents</dt><dd>${agents}</dd></div>
+      <div><dt>Tokens</dt><dd>${fmtTokens(totalTokens(total.models))}</dd></div>
+    </dl>
+    <table class="data compact roles"><thead><tr><th scope="col">Role</th><th scope="col" class="num">Agents</th>${tokenHeads()}<th scope="col" class="num">Est. USD</th></tr></thead><tbody>${rows}</tbody>
+      <tfoot><tr><th scope="row">Total</th><td class="num">${agents}</td>${tokenCells(totalOf(total.models))}<td class="num usd">${usdCell(total.usd, total.models, unpriced)}</td></tr></tfoot></table>
+    ${notes}
+  </div>`;
+}
+
+/** Tokens of every model summed into one usage record. */
+function totalOf(models) {
+  const sum = {};
+  for (const u of Object.values(models || {})) for (const [f] of TOKEN_FIELDS) sum[f] = (sum[f] || 0) + (Number(u?.[f]) || 0);
+  return sum;
 }
 
 function costChart(tasks, unpriced) {
@@ -894,12 +956,14 @@ function render() {
 // Board columns reach the bottom of the window without making the page scroll: the free height is
 // the viewport below the board minus the layout's bottom padding (CSS alone cannot know the header height).
 function fitBoard() {
-  const board = document.querySelector(".board");
-  if (!board) return;
-  const layout = board.closest(".layout");
+  const layout = document.querySelector(".layout");
   const pad = layout ? parseFloat(getComputedStyle(layout).paddingBottom) || 0 : 0;
-  const top = board.getBoundingClientRect().top + window.scrollY;
-  board.style.minHeight = `${Math.max(220, Math.floor(window.innerHeight - top - pad))}px`;
+  const room = (el) => Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY) - pad);
+  const board = document.querySelector(".board");
+  if (board) board.style.minHeight = `${Math.max(220, room(board))}px`;
+  // The event feed scrolls inside its own box and ends at the window bottom, so it never lengthens the page.
+  const feed = $("feed");
+  if (feed && getComputedStyle(feed).position === "sticky") feed.style.maxHeight = `${Math.max(200, room(feed))}px`;
 }
 window.addEventListener("resize", fitBoard);
 

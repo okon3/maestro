@@ -42,9 +42,30 @@ function writeContextSnapshot(root, sessionId, percent, usage) {
   renameSync(tmp, file);
 }
 
+// Main-session transcripts, so the dashboard can cost the PM inside each GOAL window
+// (contract: docs/dashboard-contract.md, Runtime). One small file: add or update this session's entry.
+function recordPmSession(root, sessionId, transcriptPath) {
+  const dir = join(root, ".maestro", "runtime");
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, "pm-sessions.json");
+  const data = readState(file);
+  const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+  const now = new Date().toISOString();
+  const id = sessionId || null;
+  const entry = sessions.find((s) => (id ? s.sessionId === id : s.transcriptPath === transcriptPath));
+  if (entry) {
+    entry.transcriptPath = transcriptPath;
+    entry.lastSeen = now;
+  } else sessions.push({ sessionId: id, transcriptPath, firstSeen: now, lastSeen: now });
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify({ sessions }));
+  renameSync(tmp, file);
+}
+
 await runHook("context-watch", ({ input, root, config }) => {
   if (input.agent_id) return; // transcript_path in subagent hooks is the PM transcript
   if (!input.transcript_path || !existsSync(input.transcript_path)) return;
+  recordPmSession(root, input.session_id, input.transcript_path);
   const bands = [...config.contextBands].sort((a, b) => a - b);
   const usage = contextUsage(input.transcript_path, { window: config.contextWindow });
   // After a compaction with no new message yet the old usage is stale: treat as empty.

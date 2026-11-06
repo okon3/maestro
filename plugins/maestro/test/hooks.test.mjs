@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -231,6 +231,36 @@ test("context_hook_writes_runtime", () => {
   // Subagents never write it: their transcript_path is the PM transcript.
   run("context-watch", { ...base, agent_id: "ag1", transcript_path: at(900) });
   assert.equal(JSON.parse(readFileSync(file, "utf8")).percent, 56);
+});
+
+test("context_hook_records_pm_sessions", () => {
+  const dir = tempRepo({ config: { contextWindow: 1000 } });
+  const file = join(dir, ".maestro", "runtime", "pm-sessions.json");
+  const read = () => JSON.parse(readFileSync(file, "utf8")).sessions;
+  const t1 = writeTranscript([assistant("m1", { input: 10 })]);
+  const t2 = writeTranscript([assistant("m2", { input: 20 })]);
+  const base = { cwd: dir, hook_event_name: "UserPromptSubmit" };
+
+  run("context-watch", { ...base, session_id: "s1", transcript_path: t1 });
+  const [first] = read();
+  assert.deepEqual([first.sessionId, first.transcriptPath], ["s1", t1]);
+  assert.ok(Math.abs(Date.now() - Date.parse(first.firstSeen)) < 60000);
+  assert.equal(first.lastSeen, first.firstSeen);
+
+  // The same session is updated in place, not duplicated; a new session adds an entry.
+  run("context-watch", { ...base, hook_event_name: "PostToolUse", session_id: "s1", transcript_path: t1 });
+  run("context-watch", { ...base, session_id: "s2", transcript_path: t2 });
+  const sessions = read();
+  assert.deepEqual(sessions.map((s) => [s.sessionId, s.transcriptPath]), [["s1", t1], ["s2", t2]]);
+  assert.equal(sessions[0].firstSeen, first.firstSeen);
+  assert.ok(sessions[0].lastSeen >= first.lastSeen);
+
+  // Subagent runs and missing transcripts are not PM sessions.
+  run("context-watch", { ...base, session_id: "s3", agent_id: "ag1", transcript_path: t1 });
+  run("context-watch", { ...base, session_id: "s4", transcript_path: join(dir, "missing.jsonl") });
+  assert.deepEqual(read().map((s) => s.sessionId), ["s1", "s2"]);
+  // Atomic write: no temp file left behind.
+  assert.deepEqual(readdirSync(join(dir, ".maestro", "runtime")).filter((f) => f.endsWith(".tmp")), []);
 });
 
 test("claim_command_binds_agent_id", () => {
