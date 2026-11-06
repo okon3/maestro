@@ -38,7 +38,7 @@ Only Node built-ins (Node >= 20). No npm dependencies in the plugin.
 | `.maestro/reports/<kind>/<id>.md` | yes | `task/<task-id>.md` (implementer report, saved by the architect at integration), `qa/QA-n*.md` (PM requirements and QA reports), `review/CR-n.md` (reviewer) |
 | `.maestro/runtime/` | no | usage cache (`usage.json`), pause flag (`pause.json`), interruption marker (`interrupted.json`), hook band state, misc runtime |
 | `<git-common-dir>/maestro-locks/<task-id>/` | no | claim locks, shared by all worktrees |
-| `.claude/worktrees/<name>/` | no | implementer worktrees (`impl-n`); the architect's goal worktree (`goal-<G>`: created with `--detach goal/<G>`, then switched to the goal branch; removed by the PM at GOAL close); detached QA and review snapshots (`qa-QA-n`, `cr-CR-n`); may hold links to main-checkout folders (`worktreeSetup`). The main checkout stays on the main branch, where the tracker is committed |
+| `.claude/worktrees/<name>/` | no | implementer worktrees (`impl-n`; `impl-fast` for a fast-lane fix: created with `--detach <mainBranch>`, then `switch -c impl-fast`); the architect's goal worktree (`goal-<G>`: created with `--detach goal/<G>`, then switched to the goal branch; removed by the PM at GOAL close); detached QA and review snapshots (`qa-QA-n`, `cr-CR-n`); may hold links to main-checkout folders (`worktreeSetup`). The main checkout stays on the main branch, where the tracker is committed |
 | `<git-common-dir>/worktrees/<name>/maestro-links.json` | no | folders linked by the worktree setup, read by `--remove`; git deletes it with the worktree |
 | `backlog/` | yes | Backlog.md tracker |
 | `docs/adr/` | yes | architecture decision records |
@@ -89,7 +89,7 @@ Event types (wave 1):
 | `task.claim` / `task.claim_denied` / `task.release` | `maestro claim` / `maestro release` | `{reason?}`; a denial by the usage gate adds `gate` (`top` or `paused`) |
 | `agent.start` / `agent.stop` | SubagentStart / SubagentStop hooks | `{agentType}`; stop adds `{usage}` (section 5) |
 | `agent.bind` | PreToolUse hook (`secret-guard.mjs`) when a subagent runs `maestro claim <task> --actor <name>` | `{model?}`: the model id the subagent runs on (`message.model` of the last assistant line in the last 64 KB of its transcript, best effort; absent when unreadable). `agentId`, `actor`, `task` at top level |
-| `task.measure` | `maestro measure` (architect, when a task is integrated) | `{agentIds, usage, wallMs, ownerInterventions, reworkCycles}` |
+| `task.measure` | `maestro measure` (architect, when a task or a batch is integrated; PM, for a fast-lane task) | `{agentIds, usage, wallMs, ownerInterventions, reworkCycles}` |
 | `session.compact` | PreCompact / SessionStart(compact) hooks | `{trigger, phase}` |
 | `limit.hit` | StopFailure hook (no `agentId`: the dashboard reads it as session-wide) | `{error}` |
 | `usage.sample` | `maestro usage --probe`, and any usage gate that had to probe (`claim`, `usage --check`, the usage-gate hook) | `{fiveHour, sevenDay, resetsAt}` |
@@ -97,7 +97,7 @@ Event types (wave 1):
 | `session.pause` | `maestro pause --on` (`{phase:"start", reason}`) and `--off` (`{phase:"off"}`); the pause skill logs `{phase:"done"}` through `maestro event` | see left |
 | `work.salvaged` | `maestro salvage`, one per worktree saved (`task` when the worktree had an active claim) | `{worktree, branch, commit, files}` |
 | `context.band` | context hook, once per band crossing | `{percent, band}` |
-| `goal.start`, `goal.done`, `session.resume`, `maestro.init` | PM skills, through `maestro event` | free-form |
+| `goal.start`, `goal.done`, `session.resume`, `maestro.init`, `fastlane.start` (`task` set, `data: {approved}`) | PM skills, through `maestro event` | free-form |
 | `qa.start`, `qa.freeze`, `qa.done`, `review.start`, `review.done`, `decision.recorded` | PM skills, through `maestro event` | free-form |
 | `decision.ruling` | an implementer or the architect, through `maestro event ... --task <id> --actor <name>`, when it settles a minor (non-material) ambiguity itself | `{question, ruling}` |
 

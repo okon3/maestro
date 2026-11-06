@@ -76,6 +76,7 @@
 <tr><td>Modelli (Q5)</td><td>Sonnet di base, Opus per i task difficili, <b>mai Fable</b>. L'architetto sceglie modello ed <b>effort</b> per task: entrambi si impostano nella definizione dell'agente o al lancio. L'architetto stesso gira su Opus con effort <b>medio</b> (decisione 20, dopo il pilota: era il 35% del costo della 7C).</td></tr>
 <tr><td>Limiti (Q8)</td><td>Nessun tetto per i singoli agenti, ma protezione dai loop con un numero massimo di turni. Il PM sorveglia il proprio contesto e il consumo delle 5 ore e settimanale.</td></tr>
 <tr><td>Code review (Q9)</td><td>Ogni 15 task integrati (<code>reviewEveryTasks</code>), contando anche quelli della corsia veloce; il conteggio si controlla a fine GOAL e dopo ogni integrazione della corsia veloce. Conta i task, non i GOAL: la fine di un GOAL da sola non la fa scattare (decisione 19, che aggiorna la 9).</td></tr>
+<tr><td>Corsia veloce</td><td>Con l'approvazione dell'owner, il PM lancia direttamente <b>un implementatore</b> per una correzione che è un solo task, senza scelte rilevanti né contratti o file condivisi; poi rivede e integra lui su <code>master</code>. Tutto il resto passa da un GOAL (decisione 19, sezione 3).</td></tr>
 <tr><td>Permessi (A2)</td><td>Gli agenti lavorano in modalità <code>auto</code>; se può comparire una richiesta di permesso, arriva all'owner. Nessun agente cambia modalità di permesso.</td></tr>
 <tr><td>Test (A3)</td><td>Autore dei test separato <b>rinviato</b>. Intanto l'implementatore scrive i test, ma l'architetto specifica i casi di accettazione (dato / quando / allora) che corrispondono 1:1 a test con nome, e rivede i test per primi.</td></tr>
 <tr><td>Lingua (A4)</td><td>File, comandi e codice del framework in inglese; dialogo con l'owner nella lingua del progetto.</td></tr>
@@ -95,7 +96,7 @@
     <li>Avvia <b>QA e revisore</b> in modo indipendente dall'architetto e smista i loro rapporti. A fine GOAL li lancia <b>insieme</b> e riprende l'architetto <b>una volta sola</b> con tutti i rilievi validi.</li>
     <li>Il suo checkout resta su <code>master</code> per tutto il GOAL: lì vive il tracker.</li>
     <li>Sorveglia contesto e consumo; gestisce pausa, ripresa e passaggi di turno.</li>
-    <li>Non scrive codice e non integra.</li></ul></div>
+    <li>Non scrive codice e non integra, tranne le correzioni della <b>corsia veloce</b>: con l'approvazione dell'owner lancia lui un implementatore, ne rivede il lavoro e lo integra su <code>master</code>.</li></ul></div>
   <div class="card"><h4><span class="role arch">Architetto</span> · capo del GOAL · Opus</h4><ul>
     <li>Possiede l'architettura: ADR, contratti, standard.</li>
     <li>Scompone il GOAL <b>a ondate</b> e sceglie per ogni task corsia, modello, effort e livello di QA.</li>
@@ -150,6 +151,8 @@ flowchart TB
   CR -->|rapporto| PM
   PM -->|una sola ondata di correzioni:<br/>difetti e rilievi come task| A
   PM -->|esito, deploy solo se richiesto| U
+  PM -.->|corsia veloce, con l'ok dell'owner:<br/>un task, worktree da master| IF[Implementatore<br/>impl-fast]
+  IF -.->|ramo + rapporto; il PM rivede,<br/>integra in master, misura| PM
 </div>
 <p><b>Rami e checkout</b> (attrito del pilota: il PM passava al ramo del GOAL, doveva ricordarsi di tornare su <code>master</code> e metteva in commit il tracker mentre anche l'architetto lo toccava):</p>
 <ul>
@@ -160,6 +163,14 @@ flowchart TB
   <li><b>Rami vecchi:</b> all'avvio della sessione il PM elenca i rami locali non uniti a <code>master</code> e più vecchi del GOAL in corso e li segnala all'owner, senza cancellarli.</li>
 </ul>
 <p><b>Fine GOAL in parallelo</b> (pilota: QA, poi code review, poi correzioni; i rilievi della review arrivavano mentre l'architetto correggeva i difetti del QA negli stessi file e andavano inoltrati a metà ondata): quando l'architetto torna con il GOAL integrato, il PM prepara fotografia e missioni QA e, se è dovuta, la code review, e le lancia <b>nello stesso messaggio</b>. Smista entrambi i rapporti, li chiude in un solo commit e riprende l'architetto <b>una volta sola</b>, con tutti i rilievi validi come task di un'unica ondata di correzioni. Dopo l'ondata resta il QA di riverifica sui difetti corretti.</p>
+<p><b>Corsia veloce</b> (decisione 19, attrito #22: una correzione di una riga costava un GOAL intero, circa 19 minuti e 3 dollari). Vale solo se valgono tutte queste condizioni: un solo task; nessuna scelta rilevante; nessun contratto o file condiviso (manifest, lockfile, tipi condivisi, configurazione, formato dei dati, persistenza) e nessuna area critica o congelata; ambito di pochi file noti; nessun architetto e nessun'altra corsia veloce in corso. Se una condizione è in dubbio o cade durante il lavoro, si propone un GOAL.</p>
+<ol>
+  <li>L'owner approva la corsia veloce per quella correzione; il PM controlla il consumo, crea il task (pronto, con ambito, casi di accettazione e test con nome) e registra <code>fastlane.start</code>.</li>
+  <li>Worktree <code>impl-fast</code> da <code>master</code> (fotografia con <code>worktreeSetup</code>, poi ramo <code>impl-fast</code>) e un implementatore lanciato in background, con un brief come quello dell'architetto: il PM resta disponibile all'owner.</li>
+  <li><b>Revisione del PM prima di integrare</b>, fatta da lui e non letta dal rapporto: worktree pulita e solo i commit del task; ogni file cambiato dentro l'ambito e nessun file condiviso, <code>backlog/</code> o <code>.maestro/</code>; per ogni criterio il test con il nome esatto, che verifica il comportamento, senza test tolti, saltati o allentati né verifiche disattivate; test nominati e verifiche standard del progetto rilanciati da lui, tutti verdi; criteri spuntati coerenti; decisioni locali davvero locali. Se qualcosa non va, correzione allo stesso implementatore (al massimo 2 cicli).</li>
+  <li>Integrazione su <code>master</code> nel checkout principale (<code>merge --no-ff</code>) e verifiche standard; se falliscono, <code>revert</code> e correzione. Poi rapporto del task, stato Integrated e Done, <code>maestro measure</code>, pulizia di worktree e ramo, archivio del task e un solo commit.</li>
+  <li>Infine il PM controlla se la code review è dovuta: i task della corsia veloce contano come gli altri.</li>
+</ol>
 </section>
 
 <section id="pianificazione">
@@ -180,19 +191,21 @@ flowchart TB
 stateDiagram-v2
   direction LR
   [*] --> ToDo: architetto (ondata)
+  [*] --> Ready: PM (corsia veloce)
   ToDo --> Ready: specifica e casi di accettazione pronti
   ToDo --> Blocked: decisione necessaria
   Ready --> InProgress: claim dell'implementatore
   InProgress --> InReview: ramo + rapporto
   InProgress --> Blocked: specifica superata o dubbio
-  InReview --> Integrated: architetto integra nel ramo del GOAL
+  InReview --> Integrated: architetto integra nel ramo del GOAL, o PM in master (corsia veloce)
   InReview --> Ready: correzioni (max 2 cicli)
-  Integrated --> Done: GOAL in master, QA e review superati
+  Integrated --> Done: GOAL in master, QA e review superati, o subito (corsia veloce)
   Integrated --> Ready: difetto collegato
   Blocked --> ToDo: decisione presa
   Done --> archived: PM archivia a GOAL chiuso
 </div>
 <p class="r">Stati configurati in Backlog.md: <code>To Do, Ready, In Progress, Blocked, In Review, Integrated, Done</code>. I GOAL sono task con etichetta <code>goal</code> dentro una milestone; un GOAL non ancora approvato porta anche l'etichetta <code>proposed</code>.</p>
+<p class="r">Un task della corsia veloce non ha GOAL: lo crea il PM già pronto, lo integra il PM in <code>master</code> e, verificato, passa subito a Done e in archivio. Il passaggio a Integrated resta registrato e conta per la code review. In un gruppo di task piccoli ogni task segue il proprio ciclo: l'implementatore li prende e li rilascia uno alla volta.</p>
 </section>
 
 <section id="file">
@@ -224,12 +237,12 @@ stateDiagram-v2
 <table>
 <tr><th>File</th><th><span class="role pm">PM</span></th><th><span class="role arch">Arch.</span></th><th><span class="role impl">Impl.</span></th><th><span class="role qa">QA</span></th><th><span class="role rev">Rev.</span></th></tr>
 <tr><td><code>PLAN.md</code>, <code>handoff.md</code>, GOAL nel tracker</td><td class="w">W</td><td class="r">R</td><td class="r">R</td><td class="x">—</td><td class="x">—</td></tr>
-<tr><td>Task nel tracker (specifica)</td><td class="r">R</td><td class="w">W</td><td>solo stato, note, claim</td><td class="x">—</td><td class="x">—</td></tr>
+<tr><td>Task nel tracker (specifica)</td><td>difetti, rilievi, corsia veloce</td><td class="w">W</td><td>solo stato, note, claim</td><td class="x">—</td><td class="x">—</td></tr>
 <tr><td>ADR, standard</td><td class="r">R</td><td class="w">W</td><td class="r">R</td><td class="x">—</td><td class="r">R</td></tr>
 <tr><td>Decisioni dell'owner</td><td class="w">W</td><td class="r">R</td><td class="r">R</td><td class="x">—</td><td class="r">R</td></tr>
 <tr><td>Rapporti</td><td>requisiti QA</td><td>revisione task</td><td>il proprio</td><td>il proprio</td><td>il proprio</td></tr>
-<tr><td>Codice</td><td class="x">—</td><td>integrazione, conflitti</td><td class="w">W (ambito)</td><td class="x">—</td><td class="x">—</td></tr>
-<tr><td><code>master</code></td><td>commit del tracker (quando l'architetto non lavora)</td><td class="w">W (merge del GOAL; commit del tracker mentre lavora)</td><td class="x">—</td><td class="x">—</td><td class="x">—</td></tr>
+<tr><td>Codice</td><td>integrazione della corsia veloce</td><td>integrazione, conflitti</td><td class="w">W (ambito)</td><td class="x">—</td><td class="x">—</td></tr>
+<tr><td><code>master</code></td><td>commit del tracker (quando l'architetto non lavora); merge della corsia veloce</td><td class="w">W (merge del GOAL; commit del tracker mentre lavora)</td><td class="x">—</td><td class="x">—</td><td class="x">—</td></tr>
 <tr><td>Ramo del GOAL</td><td>lo crea, senza passarci</td><td class="w">W (nella propria worktree)</td><td class="x">—</td><td class="x">—</td><td class="x">—</td></tr>
 <tr><td><code>events.jsonl</code></td><td colspan="5">tutti, solo aggiunta (anche in automatico dagli hook)</td></tr>
 </table>
@@ -270,6 +283,7 @@ sequenceDiagram
   <li><b>QA:</b> livelli <code>none</code>, <code>self-smoke</code> (l'implementatore apre la pagina), <code>checkpoint</code> (a fine GOAL o prima di un deploy) e <code>dedicated</code> (aree critiche). Missioni brevi e mirate: il pilota sulla 7B ha mostrato che una missione unica e ampia copre poco.</li>
   <li><b>Code review periodica:</b> è dovuta quando dall'ultimo tag <code>cr/CR-n</code> si sono accumulati <code>reviewEveryTasks</code> task integrati (15 di base), compresi quelli della corsia veloce; la dashboard mostra il conteggio. Il PM lo controlla a fine GOAL e dopo ogni integrazione della corsia veloce; la fine di un GOAL da sola non basta. Rilievi in tre gradi: <i>violazione</i> (task prioritario), <i>debito</i> (in coda), <i>suggerimento</i> (annotato). Non blocca il lavoro in corso.</li>
   <li><b>Fine GOAL:</b> missioni QA e code review (se dovuta) partono insieme; i loro rilievi validi tornano all'architetto in <b>una sola ondata di correzioni</b>, mai inoltrati a un architetto che sta già correggendo. Poi un QA di riverifica sui difetti corretti (sezione 3).</li>
+  <li><b>Corsia veloce:</b> la revisione dell'architetto la fa il PM, con gli stessi controlli (prima i test con nome, poi ambito e verifiche del progetto, rilanciate da lui) e lo stesso limite di 2 cicli di correzione (sezione 3).</li>
 </ul>
 </section>
 
