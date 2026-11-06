@@ -13,6 +13,7 @@ export const DEFAULTS = Object.freeze({
   backlogVersion: "1.55.3",
   reviewEveryTasks: 15,
   language: "it",
+  secretPaths: [],
 });
 
 export const CONFIG_PATH = join(".maestro", "config.json");
