@@ -91,7 +91,7 @@
   <div class="card"><h4><span class="role user">Utente</span> = owner del progetto</h4>Responsabile della riuscita del progetto, non solo utilizzatore. Decide obiettivi, priorità, scelte rilevanti (tecnologie, nuovi componenti, dati, costi, sicurezza) e azioni esterne. Parla con il PM.</div>
   <div class="card"><h4><span class="role pm">PM</span> · sessione principale · Opus</h4><ul>
     <li>Gestisce con l'utente piano, priorità, criteri e domande.</li>
-    <li>Avvia un <b>architetto per GOAL</b> e lo riprende quando c'è una decisione dell'utente.</li>
+    <li>Avvia un <b>architetto per GOAL in background</b>, così resta disponibile per l'utente mentre il team lavora; lo riprende quando c'è una decisione dell'utente.</li>
     <li>Avvia <b>QA e revisore</b> in modo indipendente dall'architetto e smista i loro rapporti.</li>
     <li>Sorveglia contesto e consumo; gestisce pausa, ripresa e passaggi di turno.</li>
     <li>Non scrive codice e non integra.</li></ul></div>
@@ -105,7 +105,7 @@
   <div class="card"><h4><span class="role impl">Implementatore ×2</span> · Sonnet (Opus se indicato)</h4><ul>
     <li>Prima di partire controlla che ciò che la specifica cita esista ancora così; poi lavora nella propria worktree, dentro l'ambito del task.</li>
     <li>Collabora con l'altro implementatore sullo stesso GOAL, ciascuno su componenti diversi.</li>
-    <li>Scrive un test con nome per ogni caso di accettazione e lo fa passare; se la specifica non regge si ferma e lo scrive.</li></ul></div>
+    <li>Scrive un test con nome per ogni caso di accettazione e lo fa passare, spuntando il criterio nel tracker appena il test è verde; se la specifica non regge si ferma e lo scrive.</li></ul></div>
   <div class="card"><h4><span class="role qa">QA esplorativo</span> · Sonnet</h4>Riceve i requisiti scritti dal PM e una build fotografata, mai il codice. Lavora per missioni brevi e mirate, ognuna su un'area e con euristiche da utente maldestro. Produce un rapporto riproducibile.</div>
   <div class="card"><h4><span class="role rev">Revisore del codice</span> · Opus · periodico</h4>Agente nuovo a ogni giro, avviato dal PM. Legge l'intervallo di commit tra due tag (con lo skill <code>code-review</code> se è installato) e verifica ADR, confini dei moduli, SOLID, YAGNI, KISS e qualità dei test. I rilievi diventano task di refactoring.</div>
 </div>
@@ -289,7 +289,7 @@ sequenceDiagram
 
 <section id="dashboard">
 <h2>13. Dashboard live (per progetto, codice nel plugin)</h2>
-<p>Pagina locale in sola lettura servita da uno script Node del plugin, aperta con <code>/maestro:dashboard</code>. Legge i file del tracker, il registro eventi, i rapporti, Git e la cache di consumo e contesto, e si aggiorna da sola quando cambiano. La vista <b>Costi</b> mostra per GOAL e per task i token per modello, il tempo, i cicli di correzione e gli interventi dell'owner (misurati), con una stima in dollari a prezzi di listino, indicata come stima. Contratto tecnico: <code>docs/dashboard-contract.md</code>.</p>
+<p>Pagina locale in sola lettura servita da uno script Node del plugin, aperta con <code>/maestro:dashboard</code>. Legge i file del tracker, il registro eventi, i rapporti, Git e la cache di consumo e contesto, e si aggiorna da sola quando cambiano; il consumo lo rilegge lei ogni 10 minuti mentre la pagina è aperta. La vista <b>Costi</b> mostra per ogni GOAL il costo pieno, dall'approvazione alla chiusura, diviso per ruolo (PM, architetto, implementatori, QA, revisore), e poi per task i token per modello, il tempo, i cicli di correzione e gli interventi dell'owner (misurati), con una stima in dollari a prezzi di listino, indicata come stima. Contratto tecnico: <code>docs/dashboard-contract.md</code>.</p>
 <div class="dash">
   <div class="top"><b>Quaderno territoriale</b><span class="pill">GOAL attivo: 7C Stato di fatto e progetto</span><span class="pill">master 1211ccf · 282 test ✓</span><span class="pill">code review: 9/15 task</span><span class="pill warn">PM contesto 48%</span><span class="pill">5h 62% · settimana 31%</span><span class="pill warn">1 decisione per l'owner</span></div>
   <div class="tabs"><span class="on">Roadmap</span><span>Bacheca</span><span>Agenti</span><span>Decisioni</span><span>Rapporti</span><span>Costi</span></div>
