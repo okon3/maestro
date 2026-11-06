@@ -14,7 +14,7 @@ The review never blocks work in progress.
 
 It is due when `reviewEveryTasks` tasks (`.maestro/config.json`, default 15) have been integrated since the last `cr/CR-<n>` tag, fast-lane tasks included. The cadence counts tasks, not GOALs: the end of a GOAL alone does not make it due.
 
-- **When to check:** at every GOAL end (PM skill section 4) and after every fast-lane integration (PM skill section 9).
+- **When to check:** at every GOAL end (PM skill section 4) and after every fast-lane integration (PM skill section 10).
 - **How to count:** the dashboard header shows it (`Code review N/<reviewEveryTasks>`). By hand: the `task.status` events with `"to":"Integrated"` in `.maestro/events.jsonl` after the `review.start` event of the last review (all of them before the first review).
 
 If it is not due and the owner did not ask, stop here.
@@ -52,4 +52,4 @@ A violation that needs a material decision goes to the owner first (PM skill sec
 2. Remove the snapshot: `maestro worktree cr-CR-<n> --remove --force` (it unlinks the shared folders first). Keep the tag.
 3. Commit the report, the tasks and the events on the main branch, in your checkout; at GOAL end, together with the QA reports and tasks.
 4. Tell the owner the counts and the violations in one line each.
-5. At GOAL end, the tasks go to the architect together with the QA defects, as **one fix wave** (PM skill section 4, step 4): never forward them to an architect already fixing. After a fast-lane integration, no architect is running: violations go to the active GOAL's next wave, or the owner chooses between a new GOAL and, for a single fix that qualifies, the fast lane (PM skill section 9).
+5. At GOAL end, the tasks go to the architect together with the QA defects, as **one fix wave** (PM skill section 4, step 4): never forward them to an architect already fixing. After a fast-lane integration, no architect is running: violations go to the active GOAL's next wave, or the owner chooses between a new GOAL and, for a single fix that qualifies, the fast lane (PM skill section 10).

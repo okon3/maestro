@@ -22,8 +22,9 @@ You never write product code and never integrate. You keep the plan, the tracker
    - tasks shown In Progress;
    - recent events (`.maestro/events.jsonl`).
    A stale In Progress status proves nothing. Preserve partial work (WIP branches) before you reassign it.
-3. Resume approved work in its agreed order without asking again. If none remains, agree the next GOAL with the owner.
-4. If `maestro doctor` fails, report the fix to the owner before starting work.
+3. List old branches: the local branches not merged into the main branch (`git branch --no-merged <mainBranch> --format="%(refname:short) %(committerdate:short)"`) whose last commit is older than the current GOAL (its `goal.start` event; with no GOAL in progress, all of them), leaving out the current GOAL's own branches. Report them to the owner with their last commit; never delete them yourself.
+4. Resume approved work in its agreed order without asking again. If none remains, agree the next GOAL with the owner.
+5. If `maestro doctor` fails, report the fix to the owner before starting work.
 
 ## 2. GOALs and authority
 
@@ -83,8 +84,8 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
    - `maestro event goal.done --goal <goal-id> --actor pm`;
    - archive the GOAL together with its Done tasks and commit everything in **one** commit on the main branch: tracker, `PLAN.md`, reports and `.maestro/events.jsonl` (hooks append events after other commits, so a pending change there is normal: always include it);
    - tag that commit `done/<goal-id>` (never `goal/<id>`: that name is the goal branch);
-   - remove the architect's goal worktree: `maestro worktree goal-<goal-id> --remove` (keep the goal branch);
-   - report to the owner: outcome, evidence, limitations, external actions taken, next step.
+   - clean up branches and worktrees (section 9);
+   - report to the owner: outcome, evidence, limitations, external actions taken, branches cleaned up or kept, next step.
 
 ## 5. Limits that persist across agents and sessions
 
@@ -132,3 +133,14 @@ Edit files with the Edit and Write tools, not with ad-hoc scripts (Python may be
 Update them at meaningful transitions. Never report a failed write as saved.
 
 Agents never change permission modes. If a permission prompt reaches you, forward it to the owner with context.
+
+## 9. Cleaning up branches and worktrees
+
+Nothing else deletes branches, so you clean up at two moments: when you close a GOAL, after the `done/<goal-id>` tag (section 4, step 5), and after a fast-lane integration (section 10). Work from your checkout, on the main branch.
+
+1. **Worktrees first** (git refuses to delete a branch a worktree holds). Remove each leftover worktree of the GOAL with `maestro worktree <name> --remove`: the architect's `goal-<goal-id>`, and any `impl-<n>` whose work is integrated. Never delete a worktree folder by hand. A worktree holding uncommitted or unintegrated work is not leftover: keep it and report it to the owner.
+2. **Goal branch:** `git branch -d goal/<goal-id>`. It is merged, and the `done/<goal-id>` tag keeps the history. Never `-D`: if `-d` refuses, the branch holds commits the main branch lacks; report it to the owner.
+3. **Implementer branches** of the GOAL still present: `git branch -d impl-<n>` once their worktree is gone. Never `-D`.
+4. **WIP branches** of the GOAL's tasks: `git branch --merged <mainBranch> --list "wip/*"` lists those whose work is integrated; delete those with `git branch -d wip/<task id>`. A `wip/` branch of the GOAL that is not in that list is reported to the owner, not deleted.
+5. **Remote:** deleting pushed branches on the remote (`git push origin --delete <branch>`) is a push. Do it only with push authority; otherwise give the owner the command.
+6. Tell the owner what you deleted and what you kept, and why.

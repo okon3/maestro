@@ -28,7 +28,7 @@ Recorded state is a claim, not a fact: verify it before acting. A stale In Progr
 6. **Recreate worktrees** for tasks with WIP:
    - on the same PC, if the worktree still exists: `maestro worktree impl-<n> --goal <GOAL id> --reuse`;
    - after a clone: `maestro worktree impl-<n> --goal <GOAL id>`, then `git -C <printed path> reset --hard wip/<task id>` (the branch was just created, so nothing is lost).
-   Tell the architect which task continues from which WIP branch. Delete `wip/<task id>` once the task is integrated. The architect recreates or reuses its own goal worktree (`.claude/worktrees/goal-<GOAL id>`).
+   Tell the architect which task continues from which WIP branch. Once the task is integrated, delete `wip/<task id>` with `git branch -d` (never `-D`), or leave it to the cleanup at GOAL close (PM skill section 9). The architect recreates or reuses its own goal worktree (`.claude/worktrees/goal-<GOAL id>`).
 7. **Rewrite `.maestro/handoff.md`** (sections Now, Running agents (ids), Waiting for the owner, Next action, Notes) with the reconciled state. Run `maestro pause --off --actor pm` (claims and Maestro agent launches are allowed again) and log `maestro event session.resume --goal <GOAL id> --actor pm`. Commit.
 8. **Continue.** Resume approved work in its agreed order without asking again. Run `maestro usage --check` first, as before every launch (PM skill section 6): at level `lower`, launch no architect yet; tell the owner and wait for the reset.
    - If an architect from this session is still resumable, `SendMessage` to it.
