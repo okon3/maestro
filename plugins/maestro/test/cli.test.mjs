@@ -436,6 +436,23 @@ test("measure_batch_writes_one_event_and_report_per_task", () => {
   assert.equal(readEvents(single.dir).find((e) => e.type === "task.measure").data.batch, undefined);
 });
 
+test("measure_batch_rework_per_task", () => {
+  const { dir, run } = setup();
+  const session = writeAgentTranscript(dir, "a1", REPORT);
+  const measure = (rework) => run(["measure", "TASK-1,TASK-2", "--agent-id", "a1", "--transcript", session, "--no-report", "--rework", rework], dir, REAL_CONTEXT);
+  const cycles = () => readEvents(dir).filter((e) => e.type === "task.measure").slice(-2).map((e) => [e.task, e.data.reworkCycles]);
+  assert.equal(measure("2").status, 0);
+  assert.deepEqual(cycles(), [["TASK-1", 2], ["TASK-2", 2]], "one number applies to every task");
+  assert.equal(measure("task-1=1,TASK-2=0").status, 0);
+  assert.deepEqual(cycles(), [["TASK-1", 1], ["TASK-2", 0]]);
+  assert.equal(measure("TASK-2=1").status, 0);
+  assert.deepEqual(cycles(), [["TASK-1", 0], ["TASK-2", 1]], "a task not listed gets 0");
+  const before = readEvents(dir).length;
+  assert.equal(measure("TASK-9=1").status, 1, "a task outside the batch");
+  assert.equal(measure("TASK-1=x").status, 1);
+  assert.equal(readEvents(dir).length, before, "nothing logged on a bad value");
+});
+
 test("measure_does_not_overwrite_report_without_force", () => {
   const { dir, run } = setup();
   mkdirSync(join(dir, ".maestro", "reports", "task"), { recursive: true });
@@ -487,10 +504,11 @@ test("event_warns_on_unknown_type", () => {
   const known = run(["event", "goal.approved", "--goal", "TASK-8", "--actor", "pm"]);
   assert.equal(known.status, 0);
   assert.equal(known.stderr, "");
+  assert.equal(run(["event", "fastlane.start", "--task", "TASK-9", "--data", '{"approved":"2026-11-06"}']).stderr, "");
   const unknown = run(["event", "goal.aproved", "--goal", "TASK-8"]);
   assert.equal(unknown.status, 0, "warns, does not fail");
   assert.match(unknown.stderr, /unknown event type "goal\.aproved".*logged anyway/);
-  assert.deepEqual(types(dir), ["goal.approved", "goal.aproved"]);
+  assert.deepEqual(types(dir), ["goal.approved", "fastlane.start", "goal.aproved"]);
 });
 
 /** A fake Claude config dir with two cached plugin versions and the install registry. */

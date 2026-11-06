@@ -34,6 +34,7 @@ export const KNOWN_EVENT_TYPES = new Set([
   "goal.approved",
   "goal.start",
   "goal.done",
+  "fastlane.start",
   // quality
   "qa.start",
   "qa.freeze",

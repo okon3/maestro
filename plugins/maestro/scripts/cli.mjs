@@ -12,7 +12,7 @@ import { backlogVersion, editTask, listTasks, viewTask } from "./lib/backlog.mjs
 import { DEFAULT_PORT, runtimeFile, startServer } from "./dashboard/server.mjs";
 import { finalReport, writeTaskReport } from "./lib/report.mjs";
 import { pluginVersionCheck } from "./lib/plugin.mjs";
-import { branchExists, findWorktree, git, refExists, worktreeBranch, worktreePath } from "./lib/git.mjs";
+import { branchExists, findWorktree, git, listWorktrees, refExists, worktreeBranch, worktreePath } from "./lib/git.mjs";
 import { applySetup, explainRemoveFailure, isInside, normalizeSetup, removeLinks, restoreLinks, worktreeBusy } from "./lib/worktree.mjs";
 import {
   clearInterrupted,
@@ -328,8 +328,9 @@ const COMMANDS = {
     }
     const path = worktreePath(root, name);
     if (flags.remove) return removeWorktree(root, name, path, setup, flags);
+    const modes = ["goal", "detach", "checkout", "base"].filter((m) => flags[m] !== undefined);
+    if (modes.length > 1) throw new CliError(`use only one of --goal, --detach, --checkout, --base (got ${modes.map((m) => `--${m}`).join(", ")})`);
     const detach = flags.detach;
-    const goal = detach === undefined ? requireName(flags.goal, "--goal") : null;
     const existing = findWorktree(root, path);
     const finish = (result, created) => {
       const { linked, warnings, run } = applySetup(root, path, setup, { runCommand: created });
@@ -356,6 +357,46 @@ const COMMANDS = {
       git(root, ["worktree", "add", "-q", "--detach", path, detach]);
       return finish({ path, detached: true, ref: detach }, true);
     }
+    if (flags.checkout !== undefined) {
+      // An existing branch (the architect's goal worktree `goal-<G>` on `goal/<G>`): no new branch.
+      const branch = flags.checkout;
+      if (branch.startsWith("-") || !/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(branch)) throw new CliError(`invalid branch for --checkout: ${branch}`);
+      if (existsSync(path) || existing) {
+        if (flags.reuse && existing?.branch === branch) return finish({ path, branch, reused: true }, false);
+        console.error(`refused: worktree path "${name}" already exists (use --reuse to reuse it on branch ${branch})`);
+        return 2;
+      }
+      if (!branchExists(root, branch)) {
+        // After a fresh clone the branch may exist only on the remote: track it.
+        if (refExists(root, `refs/remotes/origin/${branch}`)) git(root, ["branch", branch, `origin/${branch}`]);
+        else throw new CliError(`unknown branch for --checkout: ${branch}`);
+      }
+      const holder = listWorktrees(root).find((w) => w.branch === branch);
+      if (holder) {
+        console.error(`refused: branch ${branch} is checked out at ${holder.path}; a branch can be in one checkout only`);
+        return 2;
+      }
+      git(root, ["worktree", "add", "-q", path, branch]);
+      return finish({ path, branch, checkout: true }, true);
+    }
+    if (flags.base !== undefined) {
+      // A new branch named like the worktree from any ref (the fast lane's `impl-fast` from the main branch).
+      const base = flags.base;
+      if (existsSync(path) || branchExists(root, name) || existing) {
+        if (flags.reuse && existing?.branch === name) return finish({ path, branch: name, reused: true }, false);
+        console.error(`refused: worktree path or branch "${name}" already exists (use --reuse to reuse it)`);
+        return 2;
+      }
+      try {
+        if (base.startsWith("-")) throw new Error("not a ref");
+        git(root, ["rev-parse", "--verify", "--quiet", `${base}^{commit}`]);
+      } catch {
+        throw new CliError(`unknown ref for --base: ${base}`);
+      }
+      git(root, ["worktree", "add", "-q", "-b", name, path, base]);
+      return finish({ path, branch: name, base }, true);
+    }
+    const goal = requireName(flags.goal, "--goal");
     const goalBranch = `${config.goalBranchPrefix}${goal}`;
     const existingBranch = existing?.branch ?? null;
     if (existsSync(path) || branchExists(root, name) || existingBranch) {
@@ -468,15 +509,16 @@ const COMMANDS = {
     }
     // A batch: every task gets the same agents and usage; the dashboard splits a shared agent evenly among them.
     const batch = ids.length > 1 ? ids : undefined;
-    const data = {
+    const rework = parseRework(flags.rework, ids);
+    const data = (id) => ({
       agentIds,
       usage: { models, wallMs },
       wallMs,
       ownerInterventions: Number(flags.interventions ?? 0),
-      reworkCycles: Number(flags.rework ?? 0),
+      reworkCycles: rework(id),
       ...(batch ? { batch } : {}),
-    };
-    const events = ids.map((id) => appendEvent(root, "task.measure", { actor: flags.actor, goal: flags.goal, task: id, data }));
+    });
+    const events = ids.map((id) => appendEvent(root, "task.measure", { actor: flags.actor, goal: flags.goal, task: id, data: data(id) }));
     const reports = [];
     if (!flags["no-report"]) {
       const found = paths.map(({ agentId, path }) => ({ agentId, report: finalReport(path) })).filter((r) => r.report);
@@ -654,6 +696,31 @@ const COMMANDS = {
     return failed.length ? 1 : 0;
   },
 };
+
+/**
+ * `--rework` of `maestro measure`: a number for every task (default 0), or per task as `TASK-a=1,TASK-b=0`
+ * (a task of the batch not listed gets 0). Returns id -> cycles.
+ */
+function parseRework(value, ids) {
+  if (value === undefined) return () => 0;
+  const count = (v) => {
+    if (!/^\d+$/.test(String(v).trim())) throw new CliError(`invalid --rework count: ${v}`);
+    return Number(v);
+  };
+  if (!String(value).includes("=")) {
+    const n = count(value);
+    return () => n;
+  }
+  const map = new Map();
+  for (const part of String(value).split(",").map((s) => s.trim()).filter(Boolean)) {
+    const [task, n, extra] = part.split("=");
+    const id = (task ?? "").trim().toUpperCase();
+    if (extra !== undefined || n === undefined) throw new CliError(`invalid --rework entry: ${part} (use TASK-a=1,TASK-b=0)`);
+    if (!ids.includes(id)) throw new CliError(`--rework names ${id}, which is not among the measured tasks (${ids.join(", ")})`);
+    map.set(id, count(n));
+  }
+  return (id) => map.get(id) ?? 0;
+}
 
 /** Active claims: one lock directory per task, with `owner.json` once the claim succeeded. */
 function activeClaims(root) {
