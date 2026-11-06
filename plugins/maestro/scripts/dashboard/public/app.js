@@ -449,6 +449,18 @@ function taskCard(t, statusOf, running, showGoal) {
 
 // ---------- agents ----------
 
+// What an agent without a claimed task is doing: only implementers claim tasks.
+function agentDuty(roleKey, goal) {
+  const g = goal ? ` ${idEl(goal.id)}` : "";
+  const text = {
+    arch: `Leading GOAL${g}: planning waves, reviewing, integrating`,
+    qa: `Exploratory QA mission${g ? ` for${g}` : ""}`,
+    rev: "Periodic code review",
+    impl: "Starting: no task claimed yet",
+  }[roleKey];
+  return text ?? `<span class="quiet">No task claimed</span>`;
+}
+
 function renderAgents(s) {
   const { agents, tasks } = lists(s);
   const titles = new Map(tasks.map((t) => [t.id, t.title]));
@@ -463,7 +475,7 @@ function renderAgents(s) {
         .map((a) => {
           const r = roleOf(a.type, a.actor);
           return `<article class="agent r-${r.key}"><p class="agent-head"><span class="pulse" aria-hidden="true"></span><strong>${esc(a.actor || r.label)}</strong><span class="agent-role">${esc(r.label)}</span></p>
-          <p class="agent-task">${a.task ? `${idEl(a.task)} ${esc(titles.get(a.task) || "")}` : `<span class="quiet">No task claimed</span>`}</p>
+          <p class="agent-task">${a.task ? `${idEl(a.task)} ${esc(titles.get(a.task) || "")}` : agentDuty(r.key, s.header?.activeGoal)}</p>
           <p class="agent-since">Running for <strong>${timeEl(a.since, "since")}</strong><span class="quiet"> since ${esc(clockTime(a.since))}</span></p></article>`;
         })
         .join("")}</div>`
