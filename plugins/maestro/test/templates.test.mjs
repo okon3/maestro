@@ -149,3 +149,28 @@ test("status_hook_logs_task_status_event", { skip: !hasSh && "sh not on PATH" },
   assert.equal(silent.status, 0, `no maestro on PATH: the hook is a no-op (${silent.stderr})`);
   assert.equal(readEvents(dir).filter((e) => e.type === "task.status").length, 1);
 });
+
+test("init_adds_definition_of_done_defaults_idempotently", () => {
+  const items = ["Named test per acceptance criterion passes", "Architect review approved"];
+  const fresh = setup();
+  assert.equal(fresh.run().status, 0);
+  const text = read(fresh.dir, "backlog/config.yml");
+  assert.ok(text.includes(`definition_of_done: ${JSON.stringify(items)}`));
+  fresh.run();
+  assert.equal(count(read(fresh.dir, "backlog/config.yml"), "definition_of_done:"), 1, "second run adds nothing");
+
+  // An existing list keeps the owner's items and gains only the missing ones.
+  const existing = setup({ "backlog/config.yml": `project_name: "X"\ndefinition_of_done: ["Docs updated", "Architect review approved"]\n` });
+  existing.run();
+  const line = read(existing.dir, "backlog/config.yml").split("\n").find((l) => l.startsWith("definition_of_done:"));
+  assert.deepEqual(JSON.parse(line.slice("definition_of_done:".length)), ["Docs updated", "Architect review approved", items[0]]);
+  const before = snapshot(existing.dir);
+  existing.run();
+  assert.deepEqual(snapshot(existing.dir), before);
+
+  // A multi-line list is left alone and reported.
+  const multi = setup({ "backlog/config.yml": 'project_name: "X"\ndefinition_of_done:\n  - a\n' });
+  const r = multi.run();
+  assert.match(r.stdout, /manual\s+backlog config definition_of_done/);
+  assert.ok(!read(multi.dir, "backlog/config.yml").includes("Architect review approved"));
+});

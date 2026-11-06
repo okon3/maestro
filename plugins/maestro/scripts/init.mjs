@@ -4,20 +4,22 @@
 // the marked AGENTS.md block (text outside the markers is never touched), and sets up Backlog.md.
 //
 // usage: node init.mjs [--dry-run] [--json] [--project NAME] [--main-branch B] [--language L] [--skip-backlog]
-// Exit codes: 0 done, 1 error, 2 done but something needs the owner (see "manual" lines).
+// Exit codes: 0 done, 1 error, 2 done but something needs the owner (see "manual" lines). "review" lines are
+// conflicting rules found in the existing files for the PM to go through with the owner; they are never edited here.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import { findProjectRoot } from "./lib/config.mjs";
 import { backlogVersion, runTool } from "./lib/backlog.mjs";
+import { MARKER_END, MARKER_START, detectChecks, flagConflicts, planInfo, prefillChecks } from "./lib/adopt.mjs";
 
 const TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), "..", "templates");
 
-export const MARKER_START = "<!-- MAESTRO START -->";
-export const MARKER_END = "<!-- MAESTRO END -->";
+export { MARKER_START, MARKER_END };
 export const BACKLOG_STATUSES = ["To Do", "Ready", "In Progress", "Blocked", "In Review", "Integrated", "Done"];
 export const BACKLOG_LABELS = ["goal", "proposed"];
+export const DEFINITION_OF_DONE = ["Named test per acceptance criterion passes", "Architect review approved"];
 // Backlog.md runs this with `sh -c` and TASK_ID/OLD_STATUS/NEW_STATUS in the environment. `maestro` is on
 // PATH only inside Claude Code sessions with the plugin enabled; elsewhere the hook does nothing.
 export const STATUS_HOOK =
@@ -84,6 +86,7 @@ export function patchBacklogConfig(text, { fresh }) {
     { keys: ["statuses"], value: yamlList(BACKLOG_STATUSES), same: (v) => parseYamlList(v).join("|") === BACKLOG_STATUSES.join("|") },
     { keys: ["labels"], value: yamlList(BACKLOG_LABELS), same: (v) => BACKLOG_LABELS.every((l) => parseYamlList(v).includes(l)) },
     { keys: ["remote_operations"], value: "false", same: (v) => v.trim() === "false" },
+    { keys: ["definition_of_done"], dod: true },
     { keys: HOOK_KEYS, value: `'${STATUS_HOOK}'`, same: (v) => v.trim().replace(/^'|'$/g, "") === STATUS_HOOK },
   ];
   const changes = [];
@@ -91,6 +94,28 @@ export function patchBacklogConfig(text, { fresh }) {
   for (const w of wanted) {
     const index = lines.findIndex((l) => w.keys.some((k) => new RegExp(`^${k}\\s*:`).test(l)));
     const name = w.keys[0];
+    if (w.dod) {
+      // Definition of Done defaults (an inline JSON array, as Backlog.md writes it): always additive.
+      if (index === -1) {
+        lines.push(`${name}: ${JSON.stringify(DEFINITION_OF_DONE)}`);
+        changes.push(`added ${name}`);
+        continue;
+      }
+      const raw = lines[index].slice(lines[index].indexOf(":") + 1).trim();
+      let items = null;
+      try {
+        items = JSON.parse(raw);
+      } catch {}
+      if (!Array.isArray(items)) manual.push(`backlog config ${name} is ${raw || "a multi-line list"}; add ${DEFINITION_OF_DONE.map((d) => `"${d}"`).join(" and ")} by hand`);
+      else {
+        const missing = DEFINITION_OF_DONE.filter((d) => !items.includes(d));
+        if (missing.length) {
+          lines[index] = `${name}: ${JSON.stringify([...items, ...missing])}`;
+          changes.push(`extended ${name}`);
+        }
+      }
+      continue;
+    }
     if (index === -1) {
       lines.push(`${name}: ${w.value}`);
       changes.push(`added ${name}`);
@@ -124,7 +149,7 @@ function detectMainBranch(root) {
   }
 }
 
-/** Run the installer. Returns { root, actions: [{path, action, detail?}], manual: [string], dryRun }. */
+/** Run the installer. Returns { root, actions: [{path, action, detail?}], manual: [string], review: [{file, line, reason, text}], checks, dryRun }. */
 export function init({ cwd = process.cwd(), dryRun = false, project, mainBranch, language, skipBacklog = false } = {}) {
   const root = findProjectRoot(cwd);
   if (!root) throw new Error("not inside a git repository (run `git init` first)");
@@ -169,22 +194,42 @@ export function init({ cwd = process.cwd(), dryRun = false, project, mainBranch,
     }
   }
 
-  // AGENTS.md block, plus the authority/checks skeleton the first time the block is inserted.
+  // AGENTS.md block, plus the authority/checks skeleton the first time the block is inserted. The Checks
+  // section is pre-filled from the project's scripts, CI and lockfiles while it still holds the template TODOs.
   const agentsPath = "AGENTS.md";
   const agents = read(agentsPath);
   const local = template("agents-local.md");
+  const detected = detectChecks(root);
+  const review = flagConflicts(root);
+  const plan = planInfo(root);
+  if (plan && plan.lines > 150) review.push({ file: "PLAN.md", line: 1, reason: `${plan.lines} lines${plan.history ? " with GOAL history" : ""}: propose the migration (history to docs/history/, short roadmap, open items as Backlog drafts)`, text: "" });
   if (agents === null) {
-    write(agentsPath, `# ${name}: agent instructions\n\n${template("agents-section.md").trimEnd()}\n\n${local.trimEnd()}\n`);
-    act(agentsPath, "create");
+    const fresh = `# ${name}: agent instructions
+
+${template("agents-section.md").trimEnd()}
+
+${local.trimEnd()}
+`;
+    const { text, changed } = prefillChecks(fresh, detected);
+    write(agentsPath, text);
+    act(agentsPath, "create", changed ? `Checks pre-filled from ${detected.checks.length} detected command(s)` : undefined);
   } else {
-    const hasAuthority = /^#{1,6}\s+Authority\b/im.test(agents);
-    const { text, mode } = upsertBlock(agents, template("agents-section.md"), hasAuthority ? "" : local);
+    const hasAuthority = /^#{1,6}s+Authority/im.test(agents);
+    const { text: upserted, mode } = upsertBlock(agents, template("agents-section.md"), hasAuthority ? "" : local);
     if (mode === "invalid") manual.push(`${agentsPath}: Maestro markers are broken (need exactly one ${MARKER_START} before one ${MARKER_END}); fix them by hand`);
-    else if (mode === "unchanged") act(agentsPath, "unchanged");
     else {
-      write(agentsPath, text);
-      act(agentsPath, mode === "inserted" ? "insert" : "refresh", mode === "inserted" ? `Maestro block${hasAuthority ? "" : " + Authority and Checks sections"}` : "Maestro block");
-      if (mode === "inserted" && hasAuthority) manual.push(`${agentsPath}: check that the existing Authority section covers commits, push, deploy and the project checks`);
+      const { text, changed } = prefillChecks(upserted, detected);
+      const note = changed ? `Checks pre-filled from ${detected.checks.length} detected command(s), owner to confirm` : "";
+      if (mode === "unchanged" && !changed) act(agentsPath, "unchanged");
+      else {
+        write(agentsPath, text);
+        if (mode === "unchanged") act(agentsPath, "update", note);
+        else {
+          const what = mode === "inserted" ? `Maestro block${hasAuthority ? "" : " + Authority and Checks sections"}` : "Maestro block";
+          act(agentsPath, mode === "inserted" ? "insert" : "refresh", note ? `${what}; ${note}` : what);
+        }
+        if (mode === "inserted" && hasAuthority) manual.push(`${agentsPath}: check that the existing Authority section covers commits, push, deploy and the project checks`);
+      }
     }
   }
 
@@ -204,7 +249,7 @@ export function init({ cwd = process.cwd(), dryRun = false, project, mainBranch,
   if (skipBacklog) act("backlog/", "skipped");
   else setupBacklog({ root, name, dryRun, read, write, act, manual });
 
-  return { root, actions, manual, dryRun };
+  return { root, actions, manual, review, checks: detected.checks, dryRun };
 }
 
 function setupBacklog({ root, name, dryRun, read, write, act, manual }) {
@@ -265,6 +310,7 @@ export function main(argv) {
     console.log(`Maestro init in ${result.root}${result.dryRun ? " (dry run: nothing written)" : ""}`);
     for (const a of result.actions) console.log(`${a.action.padEnd(14)} ${a.path}${a.detail ? `  (${a.detail})` : ""}`);
     for (const m of result.manual) console.log(`manual         ${m}`);
+    for (const r of result.review) console.log(`review         ${r.file}:${r.line}  ${r.reason}${r.text ? `: "${r.text}"` : ""}`);
   }
   return result.manual.length ? 2 : 0;
 }
