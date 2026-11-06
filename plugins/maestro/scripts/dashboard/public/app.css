@@ -272,7 +272,8 @@ details > summary:hover { color: var(--ink); }
 .archived .milestone { margin-top: 14px; opacity: 0.8; }
 
 /* ---------- board ---------- */
-.board { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; align-items: start; }
+/* Columns share one height and reach the bottom of the window, whatever their card count. */
+.board { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; align-items: stretch; min-height: calc(100vh - 300px); }
 .col { min-height: 220px; padding: 8px; border-radius: 10px; background: var(--sunk); }
 .col-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 2px 8px; font: 600 13px/1.3 var(--f-ui); }
 .col-head .status { color: var(--ink); font-weight: 600; }
