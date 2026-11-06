@@ -287,7 +287,8 @@ export function buildState(inputs, now = new Date()) {
   const nowMs = now.getTime();
   const config = { ...DEFAULTS, ...(inputs.config ?? {}) };
   const events = inputs.events ?? [];
-  const allTasks = inputs.tasks ?? [];
+  const byId = (a, b) => String(a.id).localeCompare(String(b.id), "en", { numeric: true });
+  const allTasks = [...(inputs.tasks ?? [])].sort(byId);
   const tasksById = new Map(allTasks.map((t) => [t.id, t]));
   const goalsList = allTasks.filter(isGoal);
 
@@ -308,7 +309,7 @@ export function buildState(inputs, now = new Date()) {
 
   // Milestones -> goals -> drafts. A task's `milestone` may be a milestone id or title.
   const matches = (m, ref) => ref !== null && (lower(m.id) === lower(ref) || lower(m.title) === lower(ref));
-  const drafts = inputs.drafts ?? [];
+  const drafts = [...(inputs.drafts ?? [])].sort(byId);
   const milestones = (inputs.milestones ?? []).map((m) => ({
     id: m.id,
     title: m.title,
@@ -477,7 +478,7 @@ function readGit(root, mainBranch) {
   const line = run(["log", "-1", "--format=%h%x09%cI%x09%s", mainBranch]);
   if (line) {
     const [sha, date, ...subject] = line.split("\t");
-    main = { sha, subject: subject.join("\t"), date };
+    main = { sha, subject: subject.join("\t"), date: toIso(date) };
   }
   const branch = run(["rev-parse", "--abbrev-ref", "HEAD"]);
   const tags = [];

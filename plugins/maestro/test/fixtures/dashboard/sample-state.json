@@ -16,7 +16,7 @@
     "main": {
       "sha": "c2718e0",
       "subject": "Initial commit",
-      "date": "2026-11-06T14:00:00Z"
+      "date": "2026-11-06T14:00:00.000Z"
     },
     "review": {
       "integratedSinceLast": 1,
@@ -45,6 +45,19 @@
       "archived": false,
       "goals": [
         {
+          "id": "TASK-0",
+          "title": "Old goal",
+          "status": "Done",
+          "labels": [
+            "goal"
+          ],
+          "proposed": false,
+          "done": 1,
+          "total": 1,
+          "dependencies": [],
+          "archived": true
+        },
+        {
           "id": "TASK-1",
           "title": "The goal",
           "status": "In Progress",
@@ -58,19 +71,6 @@
             "TASK-0"
           ],
           "archived": false
-        },
-        {
-          "id": "TASK-0",
-          "title": "Old goal",
-          "status": "Done",
-          "labels": [
-            "goal"
-          ],
-          "proposed": false,
-          "done": 1,
-          "total": 1,
-          "dependencies": [],
-          "archived": true
         }
       ],
       "drafts": [
@@ -90,6 +90,19 @@
     }
   ],
   "tasks": [
+    {
+      "id": "TASK-0.1",
+      "title": "Old child",
+      "status": "Done",
+      "goal": "TASK-0",
+      "assignees": [],
+      "dependencies": [],
+      "scope": [],
+      "acDone": 0,
+      "acTotal": 0,
+      "updatedAt": "2026-11-05T10:00:00.000Z",
+      "archived": true
+    },
     {
       "id": "TASK-1.1",
       "title": "First task",
@@ -142,19 +155,6 @@
       "acTotal": 1,
       "updatedAt": "2026-11-06T14:30:00.000Z",
       "archived": false
-    },
-    {
-      "id": "TASK-0.1",
-      "title": "Old child",
-      "status": "Done",
-      "goal": "TASK-0",
-      "assignees": [],
-      "dependencies": [],
-      "scope": [],
-      "acDone": 0,
-      "acTotal": 0,
-      "updatedAt": "2026-11-05T10:00:00.000Z",
-      "archived": true
     }
   ],
   "agents": [
@@ -184,17 +184,17 @@
   ],
   "reports": [
     {
-      "kind": "task",
-      "id": "TASK-1.1",
-      "path": ".maestro/reports/task/TASK-1.1.md",
-      "title": "Plain first line report",
-      "mtime": "2026-11-06T15:00:00.000Z"
-    },
-    {
       "kind": "qa",
       "id": "QA-1",
       "path": ".maestro/reports/qa/QA-1.md",
       "title": "QA 1: exploratory",
+      "mtime": "2026-11-06T15:00:00.000Z"
+    },
+    {
+      "kind": "task",
+      "id": "TASK-1.1",
+      "path": ".maestro/reports/task/TASK-1.1.md",
+      "title": "Plain first line report",
       "mtime": "2026-11-06T15:00:00.000Z"
     }
   ],
