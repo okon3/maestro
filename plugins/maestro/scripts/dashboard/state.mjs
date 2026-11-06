@@ -3,6 +3,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { DEFAULTS } from "../lib/config.mjs";
+import { usageSummary } from "../lib/context.mjs";
 import { readEvents } from "../lib/events.mjs";
 import { git } from "../lib/git.mjs";
 import { PRICES_AS_OF, PRICES_SOURCE, costUsd } from "./prices.mjs";
@@ -259,7 +260,118 @@ function addTokens(into, from) {
   for (const k of ["input", "output", "cacheRead", "cacheWrite"]) into[k] = (into[k] ?? 0) + (from?.[k] ?? 0);
 }
 
-function buildCosts({ events, tasksById, overrides }) {
+// ---------------------------------------------------------------------------------------------
+// Full GOAL cost: everything that ran between goal.start and goal.done, split by role.
+
+const ROLES = ["pm", "architect", "implementer", "qa", "reviewer", "other"];
+const ROLE_BY_TYPE = {
+  "maestro:architect": "architect",
+  "maestro:implementer": "implementer",
+  "maestro:qa-explorer": "qa",
+  "maestro:code-reviewer": "reviewer",
+};
+const MINUTE_MS = 60 * 1000;
+
+/** goal id -> spans [{from, to, open}] (ms): each goal.start up to the next goal.done of the same goal, else now. */
+function goalWindows(events, nowMs) {
+  const byGoal = new Map();
+  for (const e of events) {
+    if ((e.type !== "goal.start" && e.type !== "goal.done") || !e.goal) continue;
+    const t = Date.parse(e.ts);
+    if (Number.isNaN(t)) continue;
+    const id = normId(e.goal);
+    const g = byGoal.get(id) ?? { spans: [], openFrom: null };
+    if (e.type === "goal.start") g.openFrom ??= t;
+    else if (g.openFrom !== null) {
+      g.spans.push({ from: g.openFrom, to: t, open: false });
+      g.openFrom = null;
+    }
+    byGoal.set(id, g);
+  }
+  const out = new Map();
+  for (const [id, g] of byGoal) {
+    if (g.openFrom !== null) g.spans.push({ from: g.openFrom, to: nowMs, open: true });
+    if (g.spans.length) out.set(id, g.spans);
+  }
+  return out;
+}
+
+/**
+ * One record per subagent: first start (for the GOAL window), role, whether it is still running, and the usage
+ * of its latest agent.stop. Usage is cumulative over the agent's transcript, so a resumed agent is counted once.
+ */
+function agentRuns(events, nowMs) {
+  const runs = new Map();
+  events.forEach((e, i) => {
+    if (!e.agentId || (e.type !== "agent.start" && e.type !== "agent.stop")) return;
+    const r = runs.get(e.agentId) ?? { firstStart: null, lastStartAt: null, lastStartIdx: -1, stop: null, stopIdx: -1, type: null };
+    if (e.type === "agent.start") {
+      r.firstStart ??= Date.parse(e.ts);
+      r.lastStartAt = Date.parse(e.ts);
+      r.lastStartIdx = i;
+    } else {
+      r.stop = e;
+      r.stopIdx = i;
+    }
+    r.type ??= e.data?.agentType ?? null;
+    runs.set(e.agentId, r);
+  });
+  const out = [];
+  for (const r of runs.values()) {
+    if (r.firstStart === null || Number.isNaN(r.firstStart)) continue;
+    // Same rule as the Agents view: no stop after the latest start, and that start is less than 12 hours old.
+    const running = r.stopIdx < r.lastStartIdx && nowMs - r.lastStartAt < AGENT_RUNNING_MS;
+    out.push({
+      start: r.firstStart,
+      role: ROLE_BY_TYPE[r.type] ?? "other",
+      running,
+      models: running ? {} : r.stop?.data?.usage?.models ?? {},
+    });
+  }
+  return out;
+}
+
+const inSpans = (t, spans) => spans.some((s) => t >= s.from && (s.open || t < s.to));
+
+/**
+ * Breakdown by role for one GOAL. `pmUsage({from, to})` returns {sessions, models} for the PM transcripts in
+ * that window, or null when no PM session is known. For an open window `to` is rounded down to the minute,
+ * so the reader can cache the result between state builds.
+ */
+function goalBreakdown(spans, runs, pmUsage) {
+  const rows = new Map(ROLES.map((role) => [role, { role, agents: 0, running: 0, models: {} }]));
+  for (const a of runs) {
+    if (!inSpans(a.start, spans)) continue;
+    const row = rows.get(a.role);
+    row.agents++;
+    if (a.running) row.running++;
+    for (const [m, tok] of Object.entries(a.models)) addTokens((row.models[m] ??= {}), tok);
+  }
+  const pm = rows.get("pm");
+  let known = typeof pmUsage === "function";
+  for (const s of known ? spans : []) {
+    let u = null;
+    try {
+      u = pmUsage({ from: s.from, to: s.open ? Math.floor(s.to / MINUTE_MS) * MINUTE_MS : s.to });
+    } catch {
+      u = null;
+    }
+    if (!u) {
+      known = false;
+      break;
+    }
+    pm.agents = Math.max(pm.agents, Number(u.sessions) || 0);
+    for (const [m, tok] of Object.entries(u.models ?? {})) addTokens((pm.models[m] ??= {}), tok);
+  }
+  if (!known) {
+    pm.agents = 0;
+    pm.models = {};
+    pm.note = "No PM session recorded for this project yet: the context-watch hook records it while the PM works.";
+  }
+  return [...rows.values()];
+}
+
+function buildCosts({ events, tasksById, overrides, nowMs = Date.now(), pmUsage = null }) {
   const unpriced = new Set();
   const byTask = new Map();
   for (const e of events) {
@@ -318,10 +430,29 @@ function buildCosts({ events, tasksById, overrides }) {
     if (usd !== null) g.usd = (g.usd ?? 0) + usd;
     goals.set(row.goal, g);
   }
+  // Full cost per GOAL that has a goal.start. A GOAL with no measured task still gets a record.
+  const windows = goalWindows(events, nowMs);
+  const runs = windows.size ? agentRuns(events, nowMs) : [];
+  const full = new Map();
+  for (const [id, spans] of windows) {
+    const breakdown = goalBreakdown(spans, runs, pmUsage).map((r) => ({ ...r, usd: round(usdOf(r.models)) }));
+    const models = {};
+    for (const r of breakdown) for (const [m, tok] of Object.entries(r.models)) addTokens((models[m] ??= {}), tok);
+    const last = spans[spans.length - 1];
+    full.set(id, {
+      window: { from: new Date(spans[0].from).toISOString(), to: last.open ? null : new Date(last.to).toISOString(), open: last.open },
+      breakdown,
+      total: { models, usd: round(usdOf(models)) },
+    });
+    if (!goals.has(id)) goals.set(id, { goal: id, title: tasksById.get(id)?.title ?? id, tasks: 0, wallMs: 0, models: {}, usd: null });
+  }
+  // Newest GOAL window first, then the GOALs known only from task measures (older data), in their order.
+  const fromOf = (id) => (full.has(id) ? Date.parse(full.get(id).window.from) : -Infinity);
+  const goalRows = [...goals.values()].sort((a, b) => fromOf(b.goal) - fromOf(a.goal));
   return {
     estimate: true,
     tasks: taskRows.map(({ row, usd }) => ({ ...row, usd: round(usd) })),
-    goals: [...goals.values()].map((g) => ({ ...g, usd: round(g.usd) })),
+    goals: goalRows.map((g) => ({ ...g, usd: round(g.usd), ...(full.get(g.goal) ?? {}) })),
     unpriced: [...unpriced].sort(),
   };
 }
@@ -334,7 +465,8 @@ const snapshot = (raw, nowMs, pick) => {
 
 /**
  * Build the state object from raw inputs (no I/O). inputs:
- * { project, config, tasks[], drafts[], milestones[], decisions[], events[], reports[], git, runtime, warnings[] }
+ * { project, config, tasks[], drafts[], milestones[], decisions[], events[], reports[], git, runtime, warnings[], pmUsage }
+ * pmUsage: optional ({from, to}) => {sessions, models} | null, the PM token usage inside a GOAL window (see loadState).
  */
 export function buildState(inputs, now = new Date()) {
   const nowMs = now.getTime();
@@ -421,7 +553,7 @@ export function buildState(inputs, now = new Date()) {
 
   const runtime = inputs.runtime ?? {};
   const overrides = config.prices && typeof config.prices === "object" ? config.prices : {};
-  const costs = buildCosts({ events, tasksById, overrides });
+  const costs = buildCosts({ events, tasksById, overrides, nowMs, pmUsage: inputs.pmUsage ?? null });
   costs.pricesSource = `${PRICES_SOURCE} (${PRICES_AS_OF})${Object.keys(overrides).length ? ", with overrides from .maestro/config.json" : ""}`;
 
   return {
@@ -467,6 +599,48 @@ function readJson(file) {
 }
 
 const posix = (p) => p.split(sep).join("/");
+
+// PM usage per transcript and window, kept between state builds (the server rebuilds on every change).
+// A transcript that has not changed is never re-read; open windows end on a whole minute, so they hit too.
+const pmCache = new Map();
+const PM_CACHE_MAX = 500;
+
+/**
+ * Reader for the PM usage inside a GOAL window, from the transcripts listed in .maestro/runtime/pm-sessions.json
+ * (written by the context-watch hook). Null when no PM session is known.
+ */
+export function pmUsageReader(root) {
+  const data = readJson(join(root, ".maestro", "runtime", "pm-sessions.json"));
+  const paths = [...new Set((Array.isArray(data?.sessions) ? data.sessions : []).map((s) => s?.transcriptPath).filter((p) => typeof p === "string" && p))];
+  if (!paths.length) return null;
+  return ({ from, to }) => {
+    const models = {};
+    let sessions = 0;
+    for (const path of paths) {
+      let st;
+      try {
+        st = statSync(path);
+      } catch {
+        continue; // transcript deleted or moved
+      }
+      const key = `${path}|${st.size}|${st.mtimeMs}|${from}|${to}`;
+      let u = pmCache.get(key);
+      if (!u) {
+        try {
+          u = usageSummary(path, { from, to });
+        } catch {
+          continue;
+        }
+        if (pmCache.size >= PM_CACHE_MAX) pmCache.clear();
+        pmCache.set(key, u);
+      }
+      if (!Object.keys(u.models).length) continue;
+      sessions++;
+      for (const [m, tok] of Object.entries(u.models)) addTokens((models[m] ??= {}), tok);
+    }
+    return { sessions, models };
+  };
+}
 
 function readEach(files, warnings, root, fn) {
   const out = [];
@@ -592,6 +766,7 @@ export function loadState(root, { now = new Date() } = {}) {
         context: readJson(join(root, ".maestro", "runtime", "context.json")),
       },
       warnings,
+      pmUsage: pmUsageReader(root),
     },
     now,
   );

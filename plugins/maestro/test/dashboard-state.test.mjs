@@ -1,8 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildState, loadState, parseFrontmatter, parseTaskFile, toIso } from "../scripts/dashboard/state.mjs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { buildState, loadState, parseFrontmatter, parseTaskFile, pmUsageReader, toIso } from "../scripts/dashboard/state.mjs";
 import { PRICES, costUsd, priceFor } from "../scripts/dashboard/prices.mjs";
 import { tempProject } from "./dashboard-helpers.mjs";
+import { assistant, writeTranscript } from "./fixtures/transcript.mjs";
 
 const NOW = new Date("2026-11-06T15:30:00Z");
 
@@ -275,4 +279,123 @@ test("state_shows_resumed_agent_as_running", () => {
   );
   const a = s.agents[0];
   assert.deepEqual([a.actor, a.task, a.state, a.since, a.until], ["impl-1", "TASK-1.1", "running", "2026-11-06T15:43:58Z", null]);
+});
+
+test("state_builds_goal_breakdown", () => {
+  const start = (ts, agentId, agentType) => ({ ts, type: "agent.start", actor: "hook", agentId, data: { agentType } });
+  const stop = (ts, agentId, agentType, models) => ({ ts, type: "agent.stop", actor: "hook", agentId, data: { agentType, usage: { models, wallMs: 1 } } });
+  const goalTask = { ...parent("TASK-2", null), title: "Second goal", labels: ["goal"], status: "In Progress" };
+  const events = [
+    { ts: "2026-11-06T09:00:00Z", type: "goal.start", goal: "TASK-1" },
+    start("2026-11-06T08:59:00Z", "early", "maestro:implementer"), // before the window: not counted
+    stop("2026-11-06T09:01:00Z", "early", "maestro:implementer", { "claude-opus-5-5": { output: 1e6 } }),
+    start("2026-11-06T09:01:00Z", "arch", "maestro:architect"),
+    stop("2026-11-06T09:20:00Z", "arch", "maestro:architect", { "claude-opus-5-5": { output: 1e6 } }),
+    start("2026-11-06T09:05:00Z", "impl1", "maestro:implementer"),
+    stop("2026-11-06T09:30:00Z", "impl1", "maestro:implementer", { "claude-sonnet-5-5": { input: 1e6 } }),
+    start("2026-11-06T09:06:00Z", "gp", "general-purpose"),
+    stop("2026-11-06T09:07:00Z", "gp", "general-purpose", { "claude-haiku-5-5": { output: 1e6 } }),
+    measure("2026-11-06T09:31:00Z", "TASK-1.1", { "claude-sonnet-5-5": { input: 1e6 } }),
+    // The architect is resumed: its second stop carries the cumulative usage, the first one is not added.
+    start("2026-11-06T09:40:00Z", "arch", "maestro:architect"),
+    stop("2026-11-06T09:50:00Z", "arch", "maestro:architect", { "claude-opus-5-5": { output: 1.5e6 } }),
+    start("2026-11-06T09:45:00Z", "qa", "maestro:qa-explorer"),
+    stop("2026-11-06T09:50:00Z", "qa", "maestro:qa-explorer", { "claude-haiku-5-5": { input: 1e6 } }),
+    start("2026-11-06T09:55:00Z", "cr", "maestro:code-reviewer"),
+    stop("2026-11-06T10:05:00Z", "cr", "maestro:code-reviewer", { "claude-sonnet-5-5": { output: 1e5 } }), // stops after goal.done: still counted
+    { ts: "2026-11-06T10:00:00Z", type: "goal.done", goal: "TASK-1" },
+    start("2026-11-06T10:00:00Z", "late", "maestro:implementer"), // the window end is exclusive
+    // A second GOAL, still open, with no measured task: one agent running, one resumed and running again.
+    { ts: "2026-11-06T14:00:00Z", type: "goal.start", goal: "task-2" },
+    start("2026-11-06T14:10:00Z", "impl3", "maestro:implementer"),
+    stop("2026-11-06T14:20:00Z", "impl3", "maestro:implementer", { "claude-sonnet-5-5": { input: 1e6 } }),
+    start("2026-11-06T14:30:00Z", "impl3", "maestro:implementer"),
+    start("2026-11-06T15:00:00Z", "impl4", "maestro:implementer"),
+    // A GOAL from older data: task measures, no goal.start.
+    measure("2026-11-06T15:01:00Z", "TASK-3.1", { "claude-sonnet-5-5": { input: 1e6 } }),
+  ];
+  const calls = [];
+  const pmUsage = ({ from, to }) => {
+    calls.push([new Date(from).toISOString(), new Date(to).toISOString()]);
+    return { sessions: 1, models: { "claude-opus-5-5": { input: 1e6 } } };
+  };
+  const now = new Date("2026-11-06T15:30:42Z");
+  const tasks = [parent("TASK-1.1", "TASK-1"), goalTask, parent("TASK-3.1", "TASK-3")];
+  const s = buildState({ tasks, events, pmUsage }, now);
+  const goals = Object.fromEntries(s.costs.goals.map((g) => [g.goal, g]));
+  const roles = (g) => Object.fromEntries(g.breakdown.map((r) => [r.role, [r.agents, r.running, r.usd]]));
+
+  // Newest GOAL window first, then GOALs known only from task measures.
+  assert.deepEqual(s.costs.goals.map((g) => g.goal), ["TASK-2", "TASK-1", "TASK-3"]);
+
+  // Closed GOAL: split by role. pm 1M opus input = 4; architect 1.5M opus output = 30 (latest stop only);
+  // implementer 1M sonnet input = 2; qa 1M haiku input = 0.1; reviewer 100k sonnet output = 1; other 1M haiku output = 0.5.
+  const g1 = goals["TASK-1"];
+  assert.deepEqual(g1.breakdown.map((r) => r.role), ["pm", "architect", "implementer", "qa", "reviewer", "other"]);
+  assert.deepEqual(roles(g1), {
+    pm: [1, 0, 4],
+    architect: [1, 0, 30],
+    implementer: [1, 0, 2],
+    qa: [1, 0, 0.1],
+    reviewer: [1, 0, 1],
+    other: [1, 0, 0.5],
+  });
+  assert.deepEqual(g1.breakdown[1].models, { "claude-opus-5-5": { input: 0, output: 1.5e6, cacheRead: 0, cacheWrite: 0 } });
+  assert.equal(g1.total.usd, 37.6);
+  assert.deepEqual(g1.total.models["claude-opus-5-5"], { input: 1e6, output: 1.5e6, cacheRead: 0, cacheWrite: 0 });
+  assert.deepEqual(g1.window, { from: "2026-11-06T09:00:00.000Z", to: "2026-11-06T10:00:00.000Z", open: false });
+  // The per-task fields from task.measure are unchanged.
+  assert.deepEqual([g1.title, g1.tasks, g1.usd, g1.wallMs], ["TASK-1", 1, 2, 100]);
+
+  // Open GOAL without task measures: listed with its tracker title; running agents are pending (no tokens),
+  // including the resumed one whose earlier stop is not counted until it stops again.
+  const g2 = goals["TASK-2"];
+  assert.deepEqual([g2.title, g2.tasks, g2.usd, g2.wallMs], ["Second goal", 0, null, 0]);
+  assert.deepEqual(g2.window, { from: "2026-11-06T14:00:00.000Z", to: null, open: true });
+  assert.deepEqual(roles(g2).implementer, [2, 2, null]);
+  assert.deepEqual(g2.breakdown.find((r) => r.role === "implementer").models, {});
+  assert.equal(g2.total.usd, 4); // the PM only
+
+  // The PM reader got each window; the open one ends on the current minute (cacheable).
+  assert.deepEqual([...calls].sort(), [
+    ["2026-11-06T09:00:00.000Z", "2026-11-06T10:00:00.000Z"],
+    ["2026-11-06T14:00:00.000Z", "2026-11-06T15:30:00.000Z"],
+  ]);
+
+  // Older data: no goal.start, so no breakdown, but the measured GOAL is still there.
+  assert.equal(goals["TASK-3"].tasks, 1);
+  assert.equal(goals["TASK-3"].breakdown, undefined);
+
+  // No PM session known: pm has no agents and a note; the rest is unchanged.
+  for (const pm of [undefined, () => null]) {
+    const n = buildState({ tasks, events, pmUsage: pm }, now).costs.goals.find((g) => g.goal === "TASK-1");
+    const row = n.breakdown[0];
+    assert.deepEqual([row.role, row.agents, row.usd], ["pm", 0, null]);
+    assert.match(row.note, /PM session/);
+    assert.equal(n.total.usd, 33.6);
+  }
+});
+
+test("state_reads_pm_sessions_for_goal_cost", () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "maestro-pm-")));
+  assert.equal(pmUsageReader(dir), null); // no pm-sessions.json yet
+  const transcript = writeTranscript([
+    assistant("before", { input: 1e6 }, { timestamp: "2026-11-06T08:00:00.000Z" }),
+    assistant("in", { input: 1e6 }, { timestamp: "2026-11-06T09:30:00.000Z", model: "claude-opus-5-5" }),
+  ]);
+  mkdirSync(join(dir, ".maestro", "runtime"), { recursive: true });
+  writeFileSync(
+    join(dir, ".maestro", "runtime", "pm-sessions.json"),
+    JSON.stringify({ sessions: [{ sessionId: "s1", transcriptPath: transcript }, { sessionId: "gone", transcriptPath: join(dir, "missing.jsonl") }] }),
+  );
+  const read = pmUsageReader(dir);
+  const window = { from: Date.parse("2026-11-06T09:00:00Z"), to: Date.parse("2026-11-06T10:00:00Z") };
+  assert.deepEqual(read(window), { sessions: 1, models: { "claude-opus-5-5": { input: 1e6, output: 0, cacheRead: 0, cacheWrite: 0 } } });
+  // Through loadState: the PM row of a GOAL window uses the recorded sessions.
+  writeFileSync(
+    join(dir, ".maestro", "events.jsonl"),
+    [{ ts: "2026-11-06T09:00:00Z", type: "goal.start", goal: "TASK-1" }, { ts: "2026-11-06T10:00:00Z", type: "goal.done", goal: "TASK-1" }].map((e) => JSON.stringify(e)).join("\n") + "\n",
+  );
+  const g = loadState(dir, { now: NOW }).costs.goals[0];
+  assert.deepEqual([g.goal, g.breakdown[0].role, g.breakdown[0].agents, g.breakdown[0].usd, g.total.usd], ["TASK-1", "pm", 1, 4, 4]);
 });
