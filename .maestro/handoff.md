@@ -11,7 +11,7 @@ Rewritten by the PM at pauses, context bands and shift changes. Last update: 202
 
 ## Running agents
 
-- None.
+- Agriturismo pilot PM (M-4): Paseo agent `aa65f76a-22bb-4f23-8e21-e38c3af0b486`, started 2026-11-06; it talks to the owner directly and logs friction in `E:\Projects\Agriturismo\.maestroeports\pilot-friction.md`.
 
 ## Waiting for the owner
 
