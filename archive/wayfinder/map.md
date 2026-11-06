@@ -1,5 +1,7 @@
 # Map: maestro, the unified orchestration plugin
 
+> **Superseded on 2026-11-06.** The owner chose the direction of the team-workflow design (`team-workflow/flusso-team-agenti.html`): Maestro is a standalone personal plugin published on `okon3/maestro`, built now and measured on real GOALs (option B) instead of after a full eval harness. This map is kept for history only; see `archive/wayfinder/SUPERSEDED.md` for where each open ticket went.
+
 <!-- label: wayfinder:map -->
 
 ## Destination

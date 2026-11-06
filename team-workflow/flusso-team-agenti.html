@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maestro — team di agenti (bozza v2)</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root { --paper:#f7f4ec; --ink:#23261f; --muted:#5f6357; --line:#d8d2c2; --card:#fffdf7;
+    --pm:#6b4fa0; --arch:#1f6f8b; --impl:#3d7a3a; --qa:#b5651d; --rev:#7a3d6b; --user:#8a2b2b; --sys:#5f6357;
+    --warn-bg:#fff4d6; --warn-line:#e3c76a; --q-bg:#eef3fb; --q-line:#9db6dc; --ok-bg:#eaf4e6; --ok-line:#8fbf7f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.55 system-ui,"Segoe UI",sans-serif; }
+  header { padding:28px 48px 16px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 0 6px; font-size:26px; } header p { margin:0; color:var(--muted); }
+  nav { position:sticky; top:0; z-index:5; background:var(--paper); border-bottom:1px solid var(--line); padding:8px 48px; display:flex; flex-wrap:wrap; gap:6px 16px; font-size:13px; }
+  nav a { color:var(--arch); text-decoration:none; }
+  main { max-width:1240px; padding:8px 48px 80px; }
+  section { margin-top:36px; }
+  h2 { font-size:20px; border-bottom:2px solid var(--ink); padding-bottom:4px; } h3 { font-size:16px; margin-top:22px; }
+  table { border-collapse:collapse; width:100%; background:var(--card); font-size:13.5px; }
+  th,td { border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; } th { background:#ece6d6; }
+  code,pre { font-family:Consolas,"Cascadia Mono",monospace; font-size:12.5px; }
+  pre { background:#22261f; color:#ecebe4; padding:14px; border-radius:6px; overflow-x:auto; }
+  .role { display:inline-block; padding:1px 8px; border-radius:10px; color:#fff; font-size:12px; font-weight:600; }
+  .pm{background:var(--pm)} .arch{background:var(--arch)} .impl{background:var(--impl)} .qa{background:var(--qa)} .rev{background:var(--rev)} .user{background:var(--user)} .sys{background:var(--sys)}
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; } .card h4 { margin:0 0 8px; } .card ul { margin:6px 0 0; padding-left:18px; }
+  .note { background:var(--warn-bg); border-left:4px solid var(--warn-line); padding:10px 14px; margin:14px 0; }
+  .ok { background:var(--ok-bg); border-left:4px solid var(--ok-line); padding:10px 14px; margin:14px 0; }
+  .q { background:var(--q-bg); border-left:4px solid var(--q-line); padding:10px 14px; margin:10px 0; } .q b { color:var(--arch); }
+  .mermaid { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px; margin:12px 0; text-align:center; }
+  .w{color:#1b5e20;font-weight:700} .r{color:var(--muted)} .x{color:#b0aa98}
+  .tag { font-size:11px; padding:1px 6px; border-radius:8px; background:#e2dccb; color:var(--muted); margin-left:4px; }
+  .dash { background:#1d211b; color:#e9e7df; border-radius:10px; padding:14px; font-size:12.5px; }
+  .dash .top { display:flex; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap; } .dash .top b { font-size:15px; }
+  .pill { background:#2d3329; padding:3px 9px; border-radius:10px; } .pill.warn { background:#5a4a1c; }
+  .tabs { display:flex; gap:6px; margin-bottom:10px; } .tabs span { padding:4px 10px; border-radius:6px; background:#2d3329; } .tabs span.on { background:#4a5443; }
+  .agents { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-bottom:12px; }
+  .agent { background:#2a2f27; border-radius:8px; padding:9px; border-top:4px solid; } .agent small { color:#a9ab9f; display:block; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; } .busy{background:#7bd16f} .idle{background:#8a8d82} .waiting{background:#f0c75e}
+  .board { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; }
+  .col { background:#262b23; border-radius:8px; padding:7px; min-height:150px; } .col h5 { margin:0 0 6px; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:#c9c7bc; }
+  .t { background:#33392f; border-radius:6px; padding:6px 7px; margin-bottom:6px; border-left:3px solid; } .t small { color:#a9ab9f; display:block; }
+  .roadmap { display:grid; grid-template-columns:150px 1fr; gap:6px 10px; align-items:center; margin-top:8px; }
+  .ms { color:#c9c7bc; font-weight:600; } .goals { display:flex; gap:6px; flex-wrap:wrap; }
+  .g { padding:5px 9px; border-radius:6px; background:#33392f; border:1px solid #4a5443; } .g.done{opacity:.55} .g.active{border-color:#7bd16f} .g small{color:#a9ab9f}
+  .feed { margin-top:12px; background:#262b23; border-radius:8px; padding:8px 10px; font-family:Consolas,monospace; font-size:11.5px; color:#cfcdc3; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Maestro — team di agenti per lo sviluppo</h1>
+  <p>Bozza v2 · 6 novembre 2026 · dopo le verifiche su Claude Code, Paseo e i tracker (<code>E:\Projects\Maestro\research\</code>) e le decisioni D1–D4. Progetto pilota: Quaderno territoriale.</p>
+</header>
+<nav>
+  <a href="#decisioni">0. Decisioni prese</a><a href="#ruoli">1. Ruoli</a><a href="#confezione">2. Plugin e repository</a><a href="#flusso">3. Flusso</a>
+  <a href="#pianificazione">4. Pianificazione a ondate</a><a href="#stati">5. Ciclo del task</a><a href="#file">6. Dove vive cosa</a><a href="#scrittori">7. Chi scrive cosa</a>
+  <a href="#decisioni-agenti">8. Dubbi e decisioni</a><a href="#qualita">9. Qualità</a><a href="#coerenza">10. Coerenza delle verifiche</a>
+  <a href="#contesto">11. Contesto e consumo</a><a href="#pausa">12. Pausa e altri PC</a><a href="#dashboard">13. Dashboard</a><a href="#aperte">14. Aperte</a><a href="#rollout">15. Messa in opera</a>
+</nav>
+<main>
+
+<section id="decisioni">
+<h2>0. Decisioni prese (6 novembre 2026)</h2>
+<table>
+<tr><th>Tema</th><th>Decisione</th></tr>
+<tr><td>Confezione</td><td>Maestro diventa un <b>plugin di Claude Code</b> e prende il posto delle regole v1–v4. Ogni progetto installa il plugin e lancia la propria dashboard.</td></tr>
+<tr><td>Esecuzione (D1)</td><td><b>Subagent di Claude Code</b>, che possono annidarsi fino a 3 livelli. Nessuna dipendenza da Paseo: se Paseo c'è, il plugin lo usa solo come fonte in più (per esempio per il consumo).</td></tr>
+<tr><td>Tracker (D2)</td><td><b>Backlog.md</b> come candidato principale. <b>beads</b> va provato sul campo con gli stessi casi critici prima di scegliere.</td></tr>
+<tr><td>Organizzazione (D3)</td><td>L'<b>architetto fa da capo del GOAL</b>: avvia gli implementatori e integra. Il PM avvia QA e revisore. <b>Si parte con un GOAL alla volta</b>; il parallelismo è tra i due implementatori dello stesso GOAL.</td></tr>
+<tr><td>Coerenza (D4)</td><td>Durante il collaudo si congelano solo le aree critiche (persistenza, migrazioni, formato dei file); altrove si lavora su fotografie fisse con verifica di validità.</td></tr>
+<tr><td>Coda dei GOAL (Q1)</td><td>Si definisce con il PM; le idee nuove si collocano insieme nel piano in corso.</td></tr>
+<tr><td>Deploy (Q2)</td><td>Sempre su richiesta esplicita dell'utente.</td></tr>
+<tr><td>GOAL in parallelo (Q3)</td><td>Ammessi quando sono indipendenti, ma <b>rinviati</b> a dopo il pilota (vedi D3).</td></tr>
+<tr><td>Modelli (Q5)</td><td>Sonnet di base, Opus per i task difficili, <b>mai Fable</b>. L'architetto sceglie modello ed <b>effort</b> per task: entrambi si impostano nella definizione dell'agente o al lancio.</td></tr>
+<tr><td>Limiti (Q8)</td><td>Nessun tetto per i singoli agenti, ma protezione dai loop con un numero massimo di turni. Il PM sorveglia il proprio contesto e il consumo delle 5 ore e settimanale.</td></tr>
+<tr><td>Code review (Q9)</td><td>Ogni 15 task integrati oppure a fine GOAL, quello che arriva prima.</td></tr>
+</table>
+</section>
+
+<section id="ruoli">
+<h2>1. Ruoli</h2>
+<div class="grid">
+  <div class="card"><h4><span class="role user">Utente</span> = owner del progetto</h4>Responsabile della riuscita del progetto, non solo utilizzatore. Decide obiettivi, priorità, scelte rilevanti (tecnologie, nuovi componenti, dati, costi, sicurezza) e azioni esterne. Parla con il PM.</div>
+  <div class="card"><h4><span class="role pm">PM</span> · sessione principale · Opus</h4><ul>
+    <li>Gestisce con l'utente piano, priorità, criteri e domande.</li>
+    <li>Avvia un <b>architetto per GOAL</b> e lo riprende quando c'è una decisione dell'utente.</li>
+    <li>Avvia <b>QA e revisore</b> in modo indipendente dall'architetto e smista i loro rapporti.</li>
+    <li>Sorveglia contesto e consumo; gestisce pausa, ripresa e passaggi di turno.</li>
+    <li>Non scrive codice e non integra.</li></ul></div>
+  <div class="card"><h4><span class="role arch">Architetto</span> · capo del GOAL · Opus</h4><ul>
+    <li>Possiede l'architettura: ADR, contratti, standard.</li>
+    <li>Scompone il GOAL <b>a ondate</b> e sceglie per ogni task corsia, modello, effort e livello di QA.</li>
+    <li>Avvia e coordina i 2 implementatori sul ramo del GOAL e rivede i loro diff.</li>
+    <li>Risolve i conflitti e integra il GOAL in <code>master</code>.</li>
+    <li>Le decisioni rilevanti non le prende: le porta al PM con opzioni e raccomandazione.</li></ul></div>
+  <div class="card"><h4><span class="role impl">Implementatore ×2</span> · Sonnet (Opus se indicato)</h4><ul>
+    <li>Prima di partire controlla che ciò che la specifica cita esista ancora così; poi lavora nella propria worktree, dentro l'ambito del task.</li>
+    <li>Collabora con l'altro implementatore sullo stesso GOAL, ciascuno su componenti diversi.</li>
+    <li>Fa passare i test di accettazione senza modificarli; se la specifica non regge si ferma e lo scrive.</li></ul></div>
+  <div class="card"><h4><span class="role qa">QA esplorativo</span> · Sonnet</h4>Riceve i requisiti scritti dal PM e una build fotografata, mai il codice. Lavora per missioni brevi e mirate, ognuna su un'area e con euristiche da utente maldestro. Produce un rapporto riproducibile.</div>
+  <div class="card"><h4><span class="role rev">Revisore del codice</span> · Opus · periodico</h4>Agente nuovo a ogni giro, avviato dal PM. Legge l'intervallo di commit tra due tag con lo skill <code>code-review</code> e verifica ADR, confini dei moduli, SOLID, YAGNI, KISS e qualità dei test. I rilievi diventano task di refactoring.</div>
+</div>
+<div class="ok"><b>Verificato:</b> un subagent può avviarne altri (prova diretta: risposta "PONG"; da documentazione fino a 3 livelli e 20 subagent contemporanei) e si può riprendere con tutta la sua storia. La catena PM → architetto → implementatori quindi funziona e il PM smette di essere un collo di bottiglia.</div>
+</section>
+
+<section id="confezione">
+<h2>2. Plugin e repository</h2>
+<table>
+<tr><th>Dove</th><th>Cosa</th></tr>
+<tr><td><code>E:\Projects\Maestro</code> (sorgente del plugin e vetrina locale)</td><td><code>.claude-plugin/plugin.json</code>; <code>agents/</code> (architect, implementer, qa-explorer, code-reviewer, test-author); <code>skills/</code> (pm, avvia-goal, pausa, riprendi, smista-qa, code-review-periodica, decisione); <code>hooks/</code> (registro eventi, soglie di contesto e consumo, ricarica dello stato dopo la compattazione); <code>bin/</code> (comandi <code>maestro</code>: claim, lock, status); <code>dashboard/</code> (server Node senza dipendenze più la pagina); modelli di <code>AGENTS.md</code> e di <code>PLAN.md</code>.</td></tr>
+<tr><td>Progetto (es. Agriturismo)</td><td>Abilita il plugin nelle impostazioni del progetto (<code>.claude/settings.json</code>). Contiene i propri dati: tracker, decisioni, rapporti, nota di passaggio. Lancia la dashboard con <code>/maestro:dashboard</code>, che apre <code>localhost</code> sui dati del progetto.</td></tr>
+</table>
+<p class="r">Il codice del framework si aggiorna in un solo posto. I progetti contengono solo dati e regole specifiche, cioè il proprio <code>AGENTS.md</code>.</p>
+</section>
+
+<section id="flusso">
+<h2>3. Flusso</h2>
+<div class="mermaid">
+flowchart TB
+  U([Owner]) <-->|piano, priorità, decisioni rilevanti| PM
+  PM -->|avvia per GOAL| A[Architetto<br/>capo del GOAL]
+  A -->|ondata di task con ambiti| BL[(Tracker<br/>Backlog.md)]
+  A -->|avvia| I1[Implementatore 1<br/>worktree 1]
+  A -->|avvia| I2[Implementatore 2<br/>worktree 2]
+  A -.->|corsia piena: test di accettazione prima| TA[Autore dei test]
+  I1 -->|ramo + rapporto| A
+  I2 -->|ramo + rapporto| A
+  A -->|rivede, integra nel ramo goal/G-x,<br/>ondata successiva| A
+  A -->|decisione rilevante: opzioni + raccomandazione| PM
+  PM -->|chiede| U
+  PM -->|riprende con la scelta| A
+  A -->|GOAL integrato in master, tag| PM
+  PM -->|tag qa/QA-n| QA[QA esplorativo]
+  PM -->|ogni 15 task o fine GOAL<br/>tag cr/CR-n| CR[Revisore]
+  QA -->|rapporto| PM
+  CR -->|rapporto| PM
+  PM -->|difetti e refactoring come task| A
+  PM -->|esito, deploy solo se richiesto| U
+</div>
+</section>
+
+<section id="pianificazione">
+<h2>4. Pianificazione a ondate (quando si definiscono i task)</h2>
+<ol>
+  <li><b>Roadmap e GOAL futuri:</b> solo obiettivo, criteri ed esclusioni; nessun file, nessuna riga.</li>
+  <li><b>All'avvio del GOAL:</b> l'architetto legge il <code>master</code> di quel momento e dettaglia <b>solo la prima ondata</b>: i contratti condivisi, più i task che si possono svolgere in parallelo.</li>
+  <li><b>Ondate successive:</b> le dettaglia quando la precedente è integrata nel ramo del GOAL, partendo da codice vero.</li>
+  <li><b>Specifiche per simboli:</b> moduli, funzioni, tipi e contratti, mai numeri di riga.</li>
+  <li><b>Controllo iniziale dell'implementatore:</b> verifica che ciò che è citato esista ancora così. Se non è così, il task torna all'architetto prima che parta del lavoro su una base superata.</li>
+</ol>
+</section>
+
+<section id="stati">
+<h2>5. Ciclo di vita del task</h2>
+<div class="mermaid">
+stateDiagram-v2
+  direction LR
+  [*] --> todo: architetto (ondata)
+  todo --> ready: specifica e test pronti
+  todo --> blocked: decisione necessaria
+  ready --> in_progress: claim dell'implementatore
+  in_progress --> review: ramo + rapporto
+  in_progress --> blocked: specifica superata o dubbio
+  review --> integrated: architetto integra nel ramo del GOAL
+  review --> ready: correzioni (max 2 cicli)
+  integrated --> verified: GOAL in master, QA e review superati
+  integrated --> ready: difetto collegato
+  blocked --> todo: decisione presa
+  verified --> archived: PM archivia a GOAL chiuso
+</div>
+</section>
+
+<section id="file">
+<h2>6. Dove vive cosa (nel progetto)</h2>
+<table>
+<tr><th>Percorso</th><th>Contenuto</th><th>Git</th></tr>
+<tr><td><code>PLAN.md</code></td><td>Visione, vincoli, roadmap per milestone, indice dei GOAL e delle decisioni. Breve: il dettaglio sta nel tracker.</td><td>sì</td></tr>
+<tr><td><code>backlog/</code> (Backlog.md)</td><td>GOAL e task, un file ciascuno, con criteri come checklist, dipendenze, stato, assegnatario, ambito di file, evidenze; <code>backlog/decisions/</code>; <code>backlog/archive/</code> per i chiusi.</td><td>sì</td></tr>
+<tr><td><code>docs/adr/</code></td><td>Decisioni architetturali.</td><td>sì</td></tr>
+<tr><td><code>.maestro/reports/</code></td><td>Rapporti di implementazione, revisione, QA e code review, con il tag di riferimento.</td><td>sì</td></tr>
+<tr><td><code>.maestro/handoff.md</code></td><td>Punto della situazione del PM: cosa è in corso, cosa aspetta l'owner, prossima azione. Lo riscrive solo il PM, alla pausa e al cambio turno.</td><td>sì</td></tr>
+<tr><td><code>.maestro/events.jsonl</code></td><td>Registro degli eventi a sola aggiunta, con unione automatica nei merge (<code>merge=union</code>).</td><td>sì, alla pausa</td></tr>
+<tr><td><code>.maestro/runtime/</code></td><td>Blocchi, presa in carico dei task, battiti, cache di consumo e contesto.</td><td>no</td></tr>
+<tr><td><code>.claude/worktrees/</code></td><td>Worktree degli implementatori.</td><td>no</td></tr>
+</table>
+<p><b>Storia senza disordine:</b> a GOAL chiuso il PM archivia GOAL e task in un solo commit e lascia in <code>PLAN.md</code> una riga di storico con il link. Nulla si cancella: l'archivio e Git conservano tutto.</p>
+</section>
+
+<section id="scrittori">
+<h2>7. Chi scrive cosa</h2>
+<table>
+<tr><th>File</th><th><span class="role pm">PM</span></th><th><span class="role arch">Arch.</span></th><th><span class="role impl">Impl.</span></th><th><span class="role qa">QA</span></th><th><span class="role rev">Rev.</span></th></tr>
+<tr><td><code>PLAN.md</code>, <code>handoff.md</code>, GOAL nel tracker</td><td class="w">W</td><td class="r">R</td><td class="r">R</td><td class="x">—</td><td class="x">—</td></tr>
+<tr><td>Task nel tracker (specifica)</td><td class="r">R</td><td class="w">W</td><td>solo stato, note, claim</td><td class="x">—</td><td class="x">—</td></tr>
+<tr><td>ADR, standard</td><td class="r">R</td><td class="w">W</td><td class="r">R</td><td class="x">—</td><td class="r">R</td></tr>
+<tr><td>Decisioni dell'owner</td><td class="w">W</td><td class="r">R</td><td class="r">R</td><td class="x">—</td><td class="r">R</td></tr>
+<tr><td>Rapporti</td><td>requisiti QA</td><td>revisione task</td><td>il proprio</td><td>il proprio</td><td>il proprio</td></tr>
+<tr><td>Codice</td><td class="x">—</td><td>integrazione, conflitti</td><td class="w">W (ambito)</td><td class="x">—</td><td class="x">—</td></tr>
+<tr><td><code>master</code></td><td class="x">—</td><td class="w">W (merge con blocco)</td><td class="x">—</td><td class="x">—</td><td class="x">—</td></tr>
+<tr><td><code>events.jsonl</code></td><td colspan="5">tutti, solo aggiunta (anche in automatico dagli hook)</td></tr>
+</table>
+</section>
+
+<section id="decisioni-agenti">
+<h2>8. Dubbi e decisioni: nessuno sceglie a caso</h2>
+<table>
+<tr><th>Tipo</th><th>Chi decide</th><th>Esempi</th></tr>
+<tr><td>Dettaglio locale e reversibile</td><td>chi lavora, e lo annota nel rapporto</td><td>nomi interni, struttura di una funzione</td></tr>
+<tr><td>Tecnica dentro una direzione approvata</td><td>architetto, con una ADR</td><td>dove sta un modulo, forma di un contratto</td></tr>
+<tr><td><b>Rilevante</b></td><td><b>owner</b>, tramite il PM</td><td>nuove tecnologie o dipendenze, database, cache, nuovi componenti architetturali, formato dei dati, persistenza, servizi esterni, sicurezza, costi, cambi di ambito</td></tr>
+</table>
+<div class="mermaid">
+sequenceDiagram
+  participant I as Implementatore
+  participant A as Architetto
+  participant PM
+  participant U as Owner
+  I->>A: dubbio, task bloccato (il resto continua)
+  alt tecnica dentro la direzione
+    A->>I: risposta + ADR se serve
+  else rilevante
+    A->>PM: si ferma: 2-3 opzioni + raccomandazione
+    PM->>U: domanda con contesto
+    U->>PM: scelta
+    PM->>PM: registra la decisione
+    PM->>A: riprende l'architetto con la scelta
+    A->>I: riparte
+  end
+</div>
+</section>
+
+<section id="qualita">
+<h2>9. Qualità: QA, code review e test</h2>
+<ul>
+  <li><b>Contro il bias dei test scritti da chi implementa</b> (solo corsia piena): l'architetto scrive i criteri come casi concreti (dato / quando / allora). Un <b>autore dei test</b>, agente nuovo che conosce solo la specifica e le interfacce pubbliche, li scrive prima. L'implementatore li fa passare senza modificarli; se secondo lui sono sbagliati, lo segnala all'architetto. La code review controlla anche la qualità dei test.</li>
+  <li><b>QA:</b> livelli <code>none</code>, <code>self-smoke</code> (l'implementatore apre la pagina), <code>checkpoint</code> (a fine GOAL o prima di un deploy) e <code>dedicated</code> (aree critiche). Missioni brevi e mirate: il pilota sulla 7B ha mostrato che una missione unica e ampia copre poco.</li>
+  <li><b>Code review periodica:</b> ogni 15 task o a fine GOAL. Rilievi in tre gradi: <i>violazione</i> (task prioritario), <i>debito</i> (in coda), <i>suggerimento</i> (annotato). Non blocca il lavoro in corso.</li>
+</ul>
+</section>
+
+<section id="coerenza">
+<h2>10. Coerenza delle verifiche (D4)</h2>
+<ul>
+  <li>QA e revisore lavorano su un <b>tag</b> (<code>qa/QA-n</code>, <code>cr/CR-n</code>): build copiata fuori dal repository, oppure worktree in sola lettura.</li>
+  <li>Ogni riscontro dichiara la propria area. Allo smistamento si confronta il tag con <code>master</code> su quell'area: se non è cambiata il riscontro è valido, altrimenti va riverificato.</li>
+  <li>Durante un collaudo <code>dedicated</code> di un'area critica non si integrano modifiche a quell'area. Le correzioni nate da un rapporto partono solo dopo la sua chiusura.</li>
+</ul>
+</section>
+
+<section id="contesto">
+<h2>11. Contesto del PM e consumo</h2>
+<h3>Contesto: compattazione gestita da noi, nella stessa sessione</h3>
+<ul>
+  <li><b>Lettura:</b> un hook calcola il contesto usato dal registro della conversazione. Funziona in qualsiasi interfaccia, anche se la barra di stato non c'è.</li>
+  <li><b>Soglie:</b> al 50% il PM non avvia nuovi GOAL; al 65% aggiorna <code>handoff.md</code> e i file di stato. La compattazione automatica è anticipata con <code>CLAUDE_AUTOCOMPACT_PCT_OVERRIDE</code>.</li>
+  <li><b>Compattazione guidata:</b> un hook prima della compattazione detta cosa tenere (solo i riferimenti allo stato). Un hook all'avvio successivo ricarica dal tracker e da <code>handoff.md</code> un riepilogo fresco.</li>
+  <li><b>Limite verificato:</b> né un hook né il modello possono avviare <code>/clear</code> o <code>/compact</code>. Si può solo anticipare la compattazione automatica e guidarla.</li>
+  <li><b>Ripiego:</b> passaggio a una sessione nuova, sullo stesso stato nei file.</li>
+</ul>
+<h3>Consumo delle 5 ore e settimanale: modulo con più fonti</h3>
+<ol>
+  <li>uno strumento di consumo dell'ambiente, se esiste (per esempio quello dell'app desktop);</li>
+  <li>la barra di stato di Claude Code, che riceve <code>rate_limits.five_hour</code> e <code>seven_day</code> con piani Pro e Max: uno script la scrive in <code>.maestro/runtime/usage.json</code>;</li>
+  <li><code>paseo usage</code>, se c'è Paseo;</li>
+  <li>una stima dai registri locali, come fa ccusage.</li>
+</ol>
+<p>Oltre l'85% non partono task lunghi; oltre il 95% il PM mette in pausa in modo pulito. L'hook sull'errore di limite raggiunto registra l'evento; la sessione interattiva riprende da sola dopo l'azzeramento.</p>
+</section>
+
+<section id="pausa">
+<h2>12. Pausa, ripresa e altri PC</h2>
+<ol>
+  <li><b>Pausa</b> (skill del PM): non avvia nuovo lavoro e aspetta gli agenti, oppure li ferma a un punto pulito. Il lavoro a metà va in commit su rami <code>wip/…</code>. Poi aggiorna tracker, <code>handoff.md</code> e registro eventi e fa il commit. Il push lo autorizza l'owner.</li>
+  <li><b>Riprendi</b>, su qualsiasi PC dopo il clone: legge <code>handoff.md</code>, tracker e rami WIP, ricrea le worktree e continua.</li>
+</ol>
+</section>
+
+<section id="dashboard">
+<h2>13. Dashboard live (per progetto, codice nel plugin)</h2>
+<p>Pagina locale in sola lettura servita da uno script Node del plugin, aperta con <code>/maestro:dashboard</code>. Legge il tracker (output JSON e aggiornamento in tempo reale di Backlog.md), il registro eventi, i rapporti, Git e la cache di consumo e contesto.</p>
+<div class="dash">
+  <div class="top"><b>Quaderno territoriale</b><span class="pill">GOAL attivo: 7C Stato di fatto e progetto</span><span class="pill">master 1211ccf · 282 test ✓</span><span class="pill">code review: 9/15 task</span><span class="pill warn">PM contesto 48%</span><span class="pill">5h 62% · settimana 31%</span><span class="pill warn">1 decisione per l'owner</span></div>
+  <div class="tabs"><span class="on">Roadmap</span><span>Bacheca</span><span>Agenti</span><span>Decisioni</span><span>Rapporti</span></div>
+  <div class="roadmap">
+    <span class="ms">M7 Edifici</span><span class="goals"><span class="g done">7A ✓<small> sagome</small></span><span class="g done">7B ✓<small> pianta</small></span><span class="g active">7C ● <small>stato di fatto · 3/7 task</small></span><span class="g">7D <small>attività multifunzionali</small></span></span>
+    <span class="ms">M8 Confronto</span><span class="goals"><span class="g">8A <small>rischi e vincoli</small></span><span class="g">8B <small>confronto scenari ← dipende da 7C</small></span><span class="g">8C <small>confronto tenute</small></span></span>
+    <span class="ms">M9 Documenti</span><span class="goals"><span class="g">9A <small>report PDF</small></span></span>
+  </div>
+  <p style="color:#a9ab9f;margin:10px 0 6px">Vista Bacheca e Agenti:</p>
+  <div class="agents">
+    <div class="agent" style="border-color:var(--pm)"><span class="dot idle"></span><b>PM</b><small>in attesa dell'owner</small></div>
+    <div class="agent" style="border-color:var(--arch)"><span class="dot busy"></span><b>Architetto 7C</b><small>revisione 7C-3 · 6 min</small></div>
+    <div class="agent" style="border-color:var(--impl)"><span class="dot busy"></span><b>Impl. 1</b><small>7C-4 modello · 22 min</small></div>
+    <div class="agent" style="border-color:var(--impl)"><span class="dot busy"></span><b>Impl. 2</b><small>7C-5 interfaccia · 9 min</small></div>
+    <div class="agent" style="border-color:var(--qa)"><span class="dot idle"></span><b>QA</b><small>prossimo: fine 7C</small></div>
+    <div class="agent" style="border-color:var(--rev)"><span class="dot idle"></span><b>Revisore</b><small>tra 6 task</small></div>
+  </div>
+  <div class="board">
+    <div class="col"><h5>Da fare</h5><div class="t" style="border-color:var(--arch)">7C-6<small>ondata 2</small></div></div>
+    <div class="col"><h5>Pronti</h5><div class="t" style="border-color:var(--impl)">7C-7 CSV<small>dipende da 7C-4</small></div></div>
+    <div class="col"><h5>In corso</h5><div class="t" style="border-color:var(--impl)">7C-4<small>impl-1 · 22 min</small></div><div class="t" style="border-color:var(--impl)">7C-5<small>impl-2 · 9 min</small></div></div>
+    <div class="col"><h5>Revisione</h5><div class="t" style="border-color:var(--arch)">7C-3<small>architetto</small></div></div>
+    <div class="col"><h5>Bloccati</h5><div class="t" style="border-color:var(--user)">7C-8<small>decisione: confronto per piano o per edificio?</small></div></div>
+    <div class="col"><h5>Integrati</h5><div class="t" style="border-color:var(--sys)">7C-1, 7C-2</div></div>
+    <div class="col"><h5>Verificati</h5></div>
+  </div>
+  <div class="feed">15:02 architetto-7C 7C-3 in_progress → review · 15:04 impl-2 claim 7C-5 · 15:05 PM decisione aperta D-12 per l'owner</div>
+</div>
+</section>
+
+<section id="aperte">
+<h2>14. Punti aperti</h2>
+<div class="q"><b>A1 — Prova sul campo dei tracker.</b> Backlog.md e beads con gli stessi casi: due worktree che creano e prendono task insieme, ripresa dopo un clone su un'altra cartella, Windows, lettura dalla dashboard, hook sui cambi di stato. Esito in <code>research/task-trackers.md</code>, poi decisione dell'owner.</div>
+<div class="q"><b>A2 — Prototipi da verificare.</b> Calcolo del contesto dal registro della conversazione dentro Paseo; hook prima della compattazione e ricarica dopo; notifiche dei sotto-agenti al livello 2 (architetto → implementatori); permessi richiesti dagli agenti annidati (a chi arrivano?).</div>
+<div class="q"><b>A3 — Autore dei test separato.</b> Lo usiamo dal pilota nella corsia piena, o lo aggiungiamo dopo aver visto i costi?</div>
+<div class="q"><b>A4 — Nome dei comandi e lingua.</b> Comandi e file del framework in inglese (riusabili) e interazione con l'owner nella lingua del progetto?</div>
+</section>
+
+<section id="rollout">
+<h2>15. Messa in opera</h2>
+<ol>
+  <li><b>GOAL M-1 (Maestro), prove:</b> prova sul campo dei tracker (A1) e prototipi degli hook (A2), in un repository di prova.</li>
+  <li><b>GOAL M-2, plugin minimo:</b> agenti, skill del PM, pausa e ripresa, hook di eventi, contesto e consumo; installazione nel progetto Agriturismo; migrazione di <code>PLAN.md</code> (storico archiviato, GOAL futuri nel tracker).</li>
+  <li><b>GOAL M-3, dashboard</b> con roadmap, bacheca, agenti, decisioni e rapporti.</li>
+  <li><b>Pilota sul GOAL 7C</b> con un architetto e due implementatori, poi un bilancio di tempi, difetti e attriti.</li>
+</ol>
+<p class="r">Il lavoro su Maestro è un progetto a sé, con un proprio piano: non va nel <code>PLAN.md</code> di Agriturismo.</p>
+</section>
+</main>
+<script>mermaid.initialize({ startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{ curve:'basis' } });</script>
+</body>
+</html>

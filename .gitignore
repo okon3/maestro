@@ -1,0 +1,10 @@
+# Maestro runtime state (locks, claims, heartbeats, usage/context caches)
+.maestro/runtime/
+# Agent worktrees
+.claude/worktrees/
+# Local Claude Code settings
+.claude/settings.local.json
+# Dependencies and OS noise
+node_modules/
+.DS_Store
+Thumbs.db
