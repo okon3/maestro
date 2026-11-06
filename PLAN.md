@@ -30,12 +30,13 @@ Design and source of truth: `team-workflow/flusso-team-agenti.html`.
 | M-0 Project setup | TASK-2 | Done | Rules, tracker, decisions and spec v3 for this repo |
 | M-2 Minimal plugin | TASK-3 | Done | Plugin published on okon3/maestro, validated in two lab runs; Agriturismo adopted Maestro |
 | M-3 Dashboard | TASK-4 | Done | Local read-only dashboard with costs per task (`/maestro:dashboard`) |
-| M-4 Pilot on Agriturismo 7C | TASK-5 | Queued | 7C delivered with Maestro, compared with 7B |
+| M-4 Pilot on Agriturismo 7C | TASK-5 | Done | 7C delivered with Maestro and compared with 7B (`research/m4-pilot-review.html`) |
+| M-6 Maestro 1.1: fixes from the pilot | TASK-8 | Approved | Pilot friction fixed: usage gate, ready worktrees, parallel GOAL end, playbook, fast lane |
 | M-5 Evaluation harness | TASK-6 | Proposed | Repeatable measurement of Maestro iterations |
 
 ## Index
 
-- Decisions: `backlog/decisions/` (decision-1 to decision-18, 2026-11-06).
+- Decisions: `backlog/decisions/` (decision-1 to decision-20, 2026-11-06).
 - Research: `research/` (Claude Code, Paseo, trackers, bake-off, hook prototypes).
 - History: `archive/` (wayfinder map superseded on 2026-11-06, original handoff), `prompts/` (orchestrator v1–v4).
 
@@ -43,3 +44,4 @@ Design and source of truth: `team-workflow/flusso-team-agenti.html`.
 
 - 2026-11-06: M-1 experiments and M-0 setup done; M-2 minimal plugin published (`done/TASK-3`), Agriturismo adopted Maestro.
 - 2026-11-06: M-3 dashboard published (`done/TASK-4`), with costs per task and two QA missions.
+- 2026-11-06: M-4 pilot done: Agriturismo 7C with Maestro, review in `research/m4-pilot-review.html`; follow-up GOAL M-6 approved, architect moved to medium effort (decision-20), fast lane for small fixes (decision-19).

@@ -4,6 +4,7 @@ title: 'Agriturismo AGENTS.md: remove rules Maestro already states'
 status: To Do
 assignee: []
 created_date: '2026-11-06T16:35:00Z'
+updated_date: '2026-11-06T21:49:00Z'
 labels: []
 dependencies: []
 parent_task_id: TASK-5
@@ -20,3 +21,9 @@ Apply after 7C closes (main checkout is on goal/TASK-1 while the architect works
 <!-- AC:BEGIN -->
 - [ ] #1 Duplicates removed and conflicts resolved as decided, in one local commit on Agriturismo master
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Moved to TASK-8.1 (GOAL M-6) on 2026-11-06; archived here.
+<!-- SECTION:NOTES:END -->

@@ -4,6 +4,7 @@ title: 'Usage gate: no new agents near the 5-hour limit'
 status: To Do
 assignee: []
 created_date: '2026-11-06T18:11:00Z'
+updated_date: '2026-11-06T21:49:00Z'
 labels: []
 dependencies: []
 parent_task_id: TASK-5
@@ -24,3 +25,9 @@ ordinal: 12000
 - [ ] #3 Architect usage rule and denser sampling near the bands
 - [ ] #4 Tests cover the gates; spec updated
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Moved to TASK-8.4 (GOAL M-6) on 2026-11-06; archived here.
+<!-- SECTION:NOTES:END -->

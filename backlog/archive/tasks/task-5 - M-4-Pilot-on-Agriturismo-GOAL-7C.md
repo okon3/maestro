@@ -1,10 +1,10 @@
 ---
 id: TASK-5
 title: M-4 Pilot on Agriturismo GOAL 7C
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-06T13:55:00Z'
-updated_date: '2026-11-06T21:44:00Z'
+updated_date: '2026-11-06T21:49:00Z'
 labels:
   - goal
 milestone: m-0
@@ -21,9 +21,9 @@ Outcome: GOAL 7C of Agriturismo delivered with Maestro (architect + 2 implemente
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 7C integrated in Agriturismo master with QA and code review passed
+- [x] #1 7C integrated in Agriturismo master with QA and code review passed
 - [x] #2 Per-task records collected and compared with 7B (time, tokens, owner interventions, defects found after integration)
-- [ ] #3 Friction list turned into Maestro tasks or decisions
+- [x] #3 Friction list turned into Maestro tasks or decisions
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -38,4 +38,6 @@ Outcome: GOAL 7C of Agriturismo delivered with Maestro (architect + 2 implemente
 2026-11-06: owner asked whether the architect should launch implementers in the foreground. Lab test bg-nesting-2 confirms it must: background children of a subagent report to the main session. Cost seen in 7C wave 2: TASK-1.3 finished 16:08 but waited 13 min in review for TASK-1.4 (16:21); TASK-1.5 (wave 3, ~11 min) started only at 16:23. Levers: pair tasks of similar size in a wave; longer term, run the architect as its own session (e.g. Paseo agent) so it can launch implementers in the background and react to each.
 
 2026-11-06: M-4 review written: research/m4-pilot-review.html. 7C vs 7B: active time 1h55 vs 1h27, cost $53.16 vs ~$30.5 (API prices), 0 critical/major in both, review found 3 issues QA could not. Architect is 35% of 7C cost. Friction grouped into done items, TASK-5.2-5.5 and new proposals; three decisions for the owner (packaging, fast lane for small fixes, architect cost).
+
+2026-11-06: closed. Review: research/m4-pilot-review.html. Owner decisions: follow-up in GOAL M-6 (TASK-8, TASK-5.2-5.5 moved there as TASK-8.1-8.4), decision-19 (fast lane for small fixes), decision-20 (architect at medium effort, applied in cde1ba0).
 <!-- SECTION:NOTES:END -->

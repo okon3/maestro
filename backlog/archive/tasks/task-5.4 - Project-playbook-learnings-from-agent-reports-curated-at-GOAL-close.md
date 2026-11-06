@@ -4,6 +4,7 @@ title: 'Project playbook: learnings from agent reports, curated at GOAL close'
 status: To Do
 assignee: []
 created_date: '2026-11-06T18:11:00Z'
+updated_date: '2026-11-06T21:49:00Z'
 labels: []
 dependencies: []
 parent_task_id: TASK-5
@@ -24,3 +25,9 @@ Owner request 2026-11-06. Agents add a LEARNINGS field (max 2-3, only costly or 
 - [ ] #4 frameworkFeedback opt-in setting for Maestro friction
 - [ ] #5 Spec updated
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Moved to TASK-8.3 (GOAL M-6) on 2026-11-06; archived here.
+<!-- SECTION:NOTES:END -->
