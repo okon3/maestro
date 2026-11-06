@@ -83,7 +83,7 @@ Rules:
   - `pm`: the PM transcripts of `pm-sessions.json` summed inside the window (`agents` = sessions with messages in it). For an open window the end is rounded down to the minute so the cache keeps working. With no PM session known, `agents` is 0 and `note` says why.
   - `total` sums the breakdown; `usd` follows the USD rule below. The per-task fields (`tasks`, `wallMs`, `models`, `usd` from `task.measure`) are unchanged and their implementer work is already inside the breakdown.
   - Each implementer agent is counted once. When one agent worked on several tasks (a batch), its usage (from its latest `agent.stop`) is split evenly among them and `sharedWith` lists the other tasks; an agent with no `agent.stop` keeps what its measure recorded beyond the known agents.
-- **Agents `state`:** `running` or `finished`. `actor` and `task` are null when no claim follows the start (architect, QA, reviewer).
+- **Agents `state`:** `running` or `finished`. An agent with no `agent.stop` is `finished` when a `limit.hit` came after its last event (killed by a usage limit; `until` is that time) or when a `task.measure` lists it after its last start; its usage then comes from its measure. `actor` and `task` are null when no claim follows the start (architect, QA, reviewer).
 - **Extra top-level fields:** `git: {branch, tags}` and `warnings` (files skipped while parsing).
 - **Caching:** every response carries `cache-control: no-store`.
 

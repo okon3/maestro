@@ -189,7 +189,32 @@ export function parseTaskFile(text, { archived = false, draft = false } = {}) {
 const isGoal = (t) => t.labels.some((l) => lower(l) === "goal");
 const isDone = (t) => DONE_STATUSES.has(lower(t.status));
 
+/**
+ * Agents that ended without an agent.stop: killed by a usage limit (a limit.hit after their last event, and
+ * nothing from them since), or already measured by the architect after their last start. agentId -> end time (ISO).
+ */
+function silentEnds(events) {
+  const last = new Map();
+  const lastStart = new Map();
+  const ended = new Map();
+  for (const e of events) {
+    if (e.agentId) {
+      last.set(e.agentId, e.ts);
+      if (e.type === "agent.start") {
+        lastStart.set(e.agentId, e.ts);
+        ended.delete(e.agentId); // resumed: running again
+      } else if (e.type === "agent.stop") ended.delete(e.agentId);
+    } else if (e.type === "limit.hit") {
+      for (const [id, ts] of last) if (!ended.has(id) && Date.parse(ts) <= Date.parse(e.ts)) ended.set(id, e.ts);
+    } else if (e.type === "task.measure") {
+      for (const id of e.data?.agentIds ?? []) if (lastStart.has(id) && !ended.has(id)) ended.set(id, e.ts);
+    }
+  }
+  return ended;
+}
+
 function buildAgents(events, now) {
+  const quietEnd = silentEnds(events);
   const starts = new Map();
   const stops = new Map();
   for (const e of events) {
@@ -255,7 +280,8 @@ function buildAgents(events, now) {
     }
     // Other roles (architect, QA, reviewer) are named after their agent type.
     if (!actor && type) actor = type.replace(/^.*:/, "");
-    const running = !stop && now - t0 < AGENT_RUNNING_MS;
+    const endedQuietly = !stop ? quietEnd.get(s.agentId) ?? null : null;
+    const running = !stop && !endedQuietly && now - t0 < AGENT_RUNNING_MS;
     agents.push({
       agentId: s.agentId,
       type,
@@ -263,7 +289,7 @@ function buildAgents(events, now) {
       task,
       state: running ? "running" : "finished",
       since: s.ts,
-      until: stop?.ts ?? null,
+      until: stop?.ts ?? endedQuietly,
     });
   }
   return agents.reverse(); // newest first
@@ -315,10 +341,12 @@ function goalWindows(events, nowMs) {
  * of its latest agent.stop. Usage is cumulative over the agent's transcript, so a resumed agent is counted once.
  */
 function agentRuns(events, nowMs) {
+  const quietEnd = silentEnds(events);
+  const usages = agentUsages(events);
   const runs = new Map();
   events.forEach((e, i) => {
     if (!e.agentId || (e.type !== "agent.start" && e.type !== "agent.stop")) return;
-    const r = runs.get(e.agentId) ?? { firstStart: null, lastStartAt: null, lastStartIdx: -1, stop: null, stopIdx: -1, type: null };
+    const r = runs.get(e.agentId) ?? { id: e.agentId, firstStart: null, lastStartAt: null, lastStartIdx: -1, stop: null, stopIdx: -1, type: null };
     if (e.type === "agent.start") {
       r.firstStart ??= Date.parse(e.ts);
       r.lastStartAt = Date.parse(e.ts);
@@ -334,13 +362,13 @@ function agentRuns(events, nowMs) {
   for (const r of runs.values()) {
     if (r.firstStart === null || Number.isNaN(r.firstStart)) continue;
     // Same rule as the Agents view: no stop after the latest start, and that start is less than 12 hours old.
-    const running = r.stopIdx < r.lastStartIdx && nowMs - r.lastStartAt < AGENT_RUNNING_MS;
+    const running = r.stopIdx < r.lastStartIdx && !quietEnd.has(r.id) && nowMs - r.lastStartAt < AGENT_RUNNING_MS;
     out.push({
       start: r.firstStart,
       role: ROLE_BY_TYPE[r.type] ?? "other",
       running,
       // A resumed agent keeps the tokens of its previous stop while it runs again (a lower bound), so totals never drop.
-      models: r.stop?.data?.usage?.models ?? {},
+      models: r.stop?.data?.usage?.models ?? (quietEnd.has(r.id) ? usages.get(r.id)?.models : null) ?? {},
     });
   }
   return out;
@@ -392,16 +420,43 @@ function goalBreakdown(spans, runs, pmUsage) {
  * Per-agent usage comes from the agent's latest agent.stop (cumulative over its transcript) or, failing that, from
  * a single-agent measure. Measures without agent ids (older data) are summed as recorded.
  */
-function measuredTasks(events) {
+/**
+ * agentId -> {models, wallMs}: the latest agent.stop; else a single-agent measure; else, for the one agent of a
+ * measure with no usage of its own (killed by a usage limit), what the measure holds beyond the other agents.
+ */
+function agentUsages(events) {
   const agentUsage = new Map();
   for (const e of events) if (e.type === "agent.stop" && e.agentId && e.data?.usage) agentUsage.set(e.agentId, e.data.usage);
   const fromStop = new Set(agentUsage.keys());
-  for (const e of events) {
-    const ids = e.type === "task.measure" ? (e.data?.agentIds ?? []) : [];
-    if (ids.length === 1 && e.data?.usage && !fromStop.has(ids[0])) {
-      agentUsage.set(String(ids[0]), { ...e.data.usage, wallMs: Number(e.data.wallMs ?? e.data.usage.wallMs ?? 0) || 0 });
+  const measures = events.filter((e) => e.type === "task.measure" && e.data?.usage && e.data?.agentIds?.length);
+  for (const e of measures) {
+    const ids = e.data.agentIds.map(String);
+    if (ids.length === 1 && !fromStop.has(ids[0])) {
+      agentUsage.set(ids[0], { ...e.data.usage, wallMs: Number(e.data.wallMs ?? e.data.usage.wallMs ?? 0) || 0 });
     }
   }
+  for (const e of measures) {
+    const ids = e.data.agentIds.map(String);
+    const unknown = ids.filter((a) => !agentUsage.has(a));
+    if (ids.length < 2 || unknown.length !== 1) continue;
+    const known = ids.filter((a) => agentUsage.has(a));
+    const models = {};
+    for (const [model, tok] of Object.entries(e.data.usage.models ?? {})) {
+      const rest = {};
+      for (const k of ["input", "output", "cacheRead", "cacheWrite"]) {
+        rest[k] = Math.max(0, (tok?.[k] ?? 0) - known.reduce((s, a) => s + (agentUsage.get(a).models?.[model]?.[k] ?? 0), 0));
+      }
+      if (Object.values(rest).some((v) => v > 0)) models[model] = rest;
+    }
+    const wall = Number(e.data.wallMs ?? e.data.usage.wallMs ?? 0) || 0;
+    const knownWall = known.reduce((s, a) => s + (Number(agentUsage.get(a).wallMs) || 0), 0);
+    agentUsage.set(unknown[0], { models, wallMs: Math.max(0, wall - knownWall) });
+  }
+  return agentUsage;
+}
+
+function measuredTasks(events) {
+  const agentUsage = agentUsages(events);
   const byTask = new Map();
   for (const e of events) {
     if (e.type !== "task.measure" || !e.task) continue;

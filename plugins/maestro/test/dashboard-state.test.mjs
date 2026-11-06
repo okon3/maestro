@@ -446,3 +446,33 @@ test("costs_split_an_agent_shared_by_several_tasks", () => {
   // The GOAL's measured total is what the agents used: 3M + 2M + 0.5M.
   assert.equal(s.costs.goals[0].models["claude-sonnet-5-5"].input, 5.5e6);
 });
+
+test("agents_killed_by_a_usage_limit_are_not_running", () => {
+  const sonnet = (input) => ({ "claude-sonnet-5-5": { input, output: 0, cacheRead: 0, cacheWrite: 0 } });
+  const s = buildState(
+    {
+      tasks: [parent("TASK-1.1", "TASK-1"), parent("TASK-1.2", "TASK-1")],
+      events: [
+        { ts: "2026-11-06T13:00:00Z", type: "goal.start", goal: "TASK-1", actor: "pm", data: {} },
+        { ts: "2026-11-06T13:01:00Z", type: "agent.start", agentId: "k1", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T13:02:00Z", type: "agent.bind", agentId: "k1", actor: "impl-1", task: "TASK-1.1", data: {} },
+        { ts: "2026-11-06T13:03:00Z", type: "agent.start", agentId: "r1", data: { agentType: "maestro:architect" } },
+        { ts: "2026-11-06T13:10:00Z", type: "limit.hit", actor: "hook", data: { error: "rate_limit" } },
+        // r1 is resumed after the limit: it runs again. k1 never comes back; b2 finishes TASK-1.1.
+        { ts: "2026-11-06T15:00:00Z", type: "agent.start", agentId: "r1", data: { agentType: "maestro:architect" } },
+        { ts: "2026-11-06T15:01:00Z", type: "agent.start", agentId: "b2", data: { agentType: "maestro:implementer" } },
+        { ts: "2026-11-06T15:20:00Z", type: "agent.stop", agentId: "b2", data: { agentType: "maestro:implementer", usage: { models: sonnet(2e6), wallMs: 100 } } },
+        { ts: "2026-11-06T15:21:00Z", type: "task.measure", task: "TASK-1.1", data: { agentIds: ["k1", "b2"], usage: { models: sonnet(3e6), wallMs: 160 }, wallMs: 160 } },
+      ],
+    },
+    NOW,
+  );
+  const by = Object.fromEntries(s.agents.map((a) => [a.agentId, a]));
+  assert.equal(by.k1.state, "finished");
+  assert.equal(by.k1.until, "2026-11-06T13:10:00Z");
+  assert.equal(by.r1.state, "running");
+  // The killed agent's share of the measure (3M - 2M) is in the implementer row of the full GOAL cost.
+  const impl = s.costs.goals[0].breakdown.find((r) => r.role === "implementer");
+  assert.equal(impl.models["claude-sonnet-5-5"].input, 3e6);
+  assert.equal(impl.running, 0);
+});
