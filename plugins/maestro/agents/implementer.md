@@ -36,7 +36,7 @@ Use the `maestro` command for claims; it is on PATH. If `maestro` is not found, 
    - the task: `backlog task <id> --plain` (description, criteria, scope, notes with model and effort);
    - `AGENTS.md` (project rules and standard checks);
    - the contracts and ADRs named in the brief or the task.
-3. Claim: `maestro claim <id> --actor <name>`. **Always claim, even if the brief does not mention it.** Exit code 2 means the claim was refused: return `STATE: blocked` with the reason.
+3. Claim: `maestro claim <id> --actor <name>`. **Always claim, even if the brief does not mention it.** Exit code 2 means the claim was refused: return `STATE: blocked` with the reason. A refusal for usage or a pause is final: do not retry and do not start another task.
 
 ## 2. Preflight
 

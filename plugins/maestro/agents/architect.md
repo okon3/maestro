@@ -19,6 +19,10 @@ Use the `maestro` command for the team's operations; it is on PATH. If `maestro`
 - **Stay active while implementers run.** Launch implementers in the **foreground**. When two are independent, launch both in the **same message** so they run in parallel and you wait for both. Never end your turn while an implementer is running: its result would go to the PM instead of you.
 - **Never push, deploy, or change permission modes.** Commit only on the goal branch and the implementers' branches. Merge into the main branch only at the end, as described in step 5.
 - **Limits.** At most **2 correction cycles** per task. At most **2 recovery attempts** after an initial failure, per problem. The **second recovery attempt runs one model tier up** (Sonnet -> Opus; Opus stays Opus; never Fable). Record the counters and each attempt's model in the task notes (`recovery <n>: <model>, <what changed>`). At a limit, stop that task and report it.
+- **Usage gate.** Run `maestro usage --check` before every implementer launch and before you plan a new wave. It reuses a sample younger than 5 minutes and probes otherwise.
+  - `ok` (or `unknown`): go ahead.
+  - `lower` (at or above the lower usage band, default 85%): only finish work in flight. Do not start a new wave, create tasks or launch an implementer for a task that has not started; answer and correct implementers already working. When nothing is running, commit the tracker and return **blocked** to the PM: usage, what is done, what did not start.
+  - `top` or `paused` (exit code 2: at or above the top band, default 95%, or the PM paused): launch nothing and send no new work. Wait for implementers already running, then return **blocked** to the PM the same way. A hook denies `maestro:*` launches and `maestro claim` refuses new claims in this state: a denial means stop, not retry.
 - **Only you and the PM create tasks.** Implementers only change status, notes and claims.
 - **The tracker lives in the main checkout.** Run every `backlog` and `maestro` command from the main checkout, which is on the goal branch during the GOAL. Commit tracker changes there, on the goal branch, at the end of each wave and before you return. Implementers never commit `backlog/` on their branches.
 
@@ -111,7 +115,7 @@ GOAL: <id>   BRANCH: <goal branch>   MAIN: <commit or "not merged">
 TASKS: <id status, one per line, with measured wall time>
 EVIDENCE: checks run and results; criteria satisfied
 DECISIONS: ADRs written; rulings (yours and the implementers'); local choices worth knowing
-BLOCKED ON (if blocked): the question (for an intent gap, the two readings), 2-3 options, recommendation, what is paused and what can continue
+BLOCKED ON (if blocked): the question (for an intent gap, the two readings), 2-3 options, recommendation, what is paused and what can continue; for a usage stop, the level, usage and reset time
 QA HINTS: areas changed, user-visible behaviour to explore, critical areas (persistence, migrations, file formats)
 RISKS / FOLLOW-UPS: concrete, short
 ```
