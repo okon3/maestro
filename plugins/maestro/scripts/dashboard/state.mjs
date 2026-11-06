@@ -276,12 +276,13 @@ const MINUTE_MS = 60 * 1000;
 function goalWindows(events, nowMs) {
   const byGoal = new Map();
   for (const e of events) {
-    if ((e.type !== "goal.start" && e.type !== "goal.done") || !e.goal) continue;
+    // goal.approved opens the window too: the PM's work to agree the GOAL is part of its cost.
+    if ((e.type !== "goal.start" && e.type !== "goal.approved" && e.type !== "goal.done") || !e.goal) continue;
     const t = Date.parse(e.ts);
     if (Number.isNaN(t)) continue;
     const id = normId(e.goal);
     const g = byGoal.get(id) ?? { spans: [], openFrom: null };
-    if (e.type === "goal.start") g.openFrom ??= t;
+    if (e.type === "goal.start" || e.type === "goal.approved") g.openFrom ??= t;
     else if (g.openFrom !== null) {
       g.spans.push({ from: g.openFrom, to: t, open: false });
       g.openFrom = null;
@@ -325,7 +326,8 @@ function agentRuns(events, nowMs) {
       start: r.firstStart,
       role: ROLE_BY_TYPE[r.type] ?? "other",
       running,
-      models: running ? {} : r.stop?.data?.usage?.models ?? {},
+      // A resumed agent keeps the tokens of its previous stop while it runs again (a lower bound), so totals never drop.
+      models: r.stop?.data?.usage?.models ?? {},
     });
   }
   return out;

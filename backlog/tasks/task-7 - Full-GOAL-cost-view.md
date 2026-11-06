@@ -1,10 +1,11 @@
 ---
 id: TASK-7
 title: Full GOAL cost view
-status: In Progress
+status: Done
 assignee:
   - '@impl-1'
 created_date: '2026-11-06T15:58:00Z'
+updated_date: '2026-11-06T16:08:00Z'
 labels: []
 dependencies: []
 references:
@@ -24,8 +25,14 @@ Requested by the owner on 2026-11-06 during the pilot: per GOAL, the cost of eve
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Given a PM transcript and a GOAL window, usageSummary with {from,to} sums only assistant messages inside the window (test: usage_summary_respects_window)
-- [ ] #2 The context-watch hook records each main-session transcript in .maestro/runtime/pm-sessions.json (test: context_hook_records_pm_sessions)
-- [ ] #3 Given goal.start/goal.done events, agent.start/stop with usage (a resumed agent counted once, latest stop) and PM sessions, costs.goals[].breakdown gives tokens and USD per role (pm, architect, implementer, qa, reviewer, other) with running agents counted as pending, and a total (test: state_builds_goal_breakdown)
-- [ ] #4 The Costs view shows per GOAL the full cost with the split by role and a note on pending running agents; the per-task table stays
+- [x] #1 Given a PM transcript and a GOAL window, usageSummary with {from,to} sums only assistant messages inside the window (test: usage_summary_respects_window)
+- [x] #2 The context-watch hook records each main-session transcript in .maestro/runtime/pm-sessions.json (test: context_hook_records_pm_sessions)
+- [x] #3 Given goal.start/goal.done events, agent.start/stop with usage (a resumed agent counted once, latest stop) and PM sessions, costs.goals[].breakdown gives tokens and USD per role (pm, architect, implementer, qa, reviewer, other) with running agents counted as pending, and a total (test: state_builds_goal_breakdown)
+- [x] #4 The Costs view shows per GOAL the full cost with the split by role and a note on pending running agents; the per-task table stays
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Costs view shows the full cost per GOAL split by role (PM, architect, implementers, QA, reviewer) over the GOAL window (from goal.approved/goal.start to goal.done), plus the measured tasks. 66 tests. Also: feed fitted to the window.
+<!-- SECTION:FINAL_SUMMARY:END -->

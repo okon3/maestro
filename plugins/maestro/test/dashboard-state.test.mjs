@@ -347,14 +347,14 @@ test("state_builds_goal_breakdown", () => {
   // The per-task fields from task.measure are unchanged.
   assert.deepEqual([g1.title, g1.tasks, g1.usd, g1.wallMs], ["TASK-1", 1, 2, 100]);
 
-  // Open GOAL without task measures: listed with its tracker title; running agents are pending (no tokens),
-  // including the resumed one whose earlier stop is not counted until it stops again.
+  // Open GOAL without task measures: listed with its tracker title; running agents are pending. A resumed agent
+  // keeps the tokens of its earlier stop while it runs again (lower bound: 1M sonnet input = $2), so totals never drop.
   const g2 = goals["TASK-2"];
   assert.deepEqual([g2.title, g2.tasks, g2.usd, g2.wallMs], ["Second goal", 0, null, 0]);
   assert.deepEqual(g2.window, { from: "2026-11-06T14:00:00.000Z", to: null, open: true });
-  assert.deepEqual(roles(g2).implementer, [2, 2, null]);
-  assert.deepEqual(g2.breakdown.find((r) => r.role === "implementer").models, {});
-  assert.equal(g2.total.usd, 4); // the PM only
+  assert.deepEqual(roles(g2).implementer, [2, 2, 2]);
+  assert.deepEqual(g2.breakdown.find((r) => r.role === "implementer").models, { "claude-sonnet-5-5": { input: 1e6, output: 0, cacheRead: 0, cacheWrite: 0 } });
+  assert.equal(g2.total.usd, 6); // the PM (4) and the resumed implementer's earlier stop (2)
 
   // The PM reader got each window; the open one ends on the current minute (cacheable).
   assert.deepEqual([...calls].sort(), [
