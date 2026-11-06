@@ -66,13 +66,14 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
    - **failed**: with evidence.
 3. When blocked, ask the owner, record the decision, then resume **the same architect** with `SendMessage` to its agent id. It keeps its full history.
 4. After integration, run QA (`maestro:triage-qa` explains missions and triage) and, when due, the periodic review (`maestro:periodic-review`: every `reviewEveryTasks` integrated tasks or at GOAL end, whichever comes first). Findings become tasks for the architect.
-5. Close the GOAL:
+5. Close the GOAL, from the main branch (`git switch <mainBranch>`: the architect merged there while your checkout stayed on the goal branch):
    - check its acceptance criteria with evidence;
    - set every Integrated subtask and the GOAL to Done;
    - a subtask that is not Integrated (an open defect or debt) must not be archived with the GOAL: with the owner, move it to the next GOAL or turn it into a standalone task (`backlog task edit <id> --parent ""` if supported, else recreate it and archive the old one with a pointer);
-   - tag the main branch `done/<goal-id>` (never `goal/<id>`: that name is the goal branch);
-   - archive the GOAL together with its Done tasks, in one commit on the main branch, including `.maestro/events.jsonl` and the reports;
    - add a one-line history entry to `PLAN.md`;
+   - `maestro event goal.done --goal <goal-id> --actor pm`;
+   - archive the GOAL together with its Done tasks and commit everything in **one** commit on the main branch: tracker, `PLAN.md`, reports and `.maestro/events.jsonl` (hooks append events after other commits, so a pending change there is normal: always include it);
+   - tag that commit `done/<goal-id>` (never `goal/<id>`: that name is the goal branch);
    - report to the owner: outcome, evidence, limitations, external actions taken, next step.
 
 ## 5. Limits that persist across agents and sessions
@@ -101,6 +102,8 @@ You cannot run `/compact` or `/clear` yourself. If the owner should run one, say
 ## 7. Models
 
 Use Sonnet by default and Opus for hard reasoning. Never use Fable. The architect chooses the model and effort for each task. Downgrade only with evidence.
+
+Edit files with the Edit and Write tools, not with ad-hoc scripts (Python may be missing).
 
 ## 8. State you own
 

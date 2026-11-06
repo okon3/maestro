@@ -37,4 +37,5 @@ Return the final report in the format defined in your instructions.
    - **blocked:** ask the owner, record the decision with `maestro:decision`, then resume the architect with `SendMessage`.
    - **failed:** diagnose; the recovery limits apply.
 
-   Record the architect's agent id in `.maestro/handoff.md` while the GOAL is open.
+   The architect's agent id is known when it returns: record it in `.maestro/handoff.md` whenever the GOAL stays open (blocked, failed, or waiting for QA), so it can be resumed after a pause.
+7. **Integrated:** switch your checkout back to the main branch before QA and closing.
