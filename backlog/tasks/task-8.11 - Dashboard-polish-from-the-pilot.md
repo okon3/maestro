@@ -1,9 +1,10 @@
 ---
 id: TASK-8.11
 title: Dashboard polish from the pilot
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-06T21:49:00Z'
+updated_date: '2026-11-06T22:01:00Z'
 labels: []
 dependencies: []
 parent_task_id: TASK-8
@@ -18,5 +19,11 @@ Open questions shown apart from blocking decisions; a milestone with only drafts
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Each listed item implemented and checked on a screenshot
+- [x] #1 Each listed item implemented and checked on a screenshot
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Integrated f73d208 (branch commits 5ede33a, 5e5c90b): blocking vs open questions, completed milestones, No GOAL group, decision fields, unknown event data, QA/review mission, agent model (measured, recorded by agent.bind, planned). 76 tests. Screenshots checked by the PM.
+<!-- SECTION:NOTES:END -->

@@ -1,9 +1,10 @@
 ---
 id: TASK-8
 title: 'M-6 Maestro 1.1: fixes from the pilot'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T21:49:00Z'
+updated_date: '2026-11-06T22:01:00Z'
 labels:
   - goal
 milestone: m-0

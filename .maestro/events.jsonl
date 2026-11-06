@@ -8,3 +8,7 @@
 {"ts":"2026-11-06T15:26:17.677Z","type":"qa.done","actor":"pm","goal":"TASK-4","data":{"qa":"QA-1+QA-2","findings":{"major":1,"minor":11,"cosmetic":5},"fixed":["report line breaks","agent pairing","Home/End tab keys"]}}
 {"ts":"2026-11-06T15:26:31.220Z","type":"goal.done","actor":"pm","goal":"TASK-4"}
 {"ts":"2026-11-06T16:08:20.329Z","type":"task.measure","actor":"architect","task":"TASK-7","data":{"agentIds":["a5c261ae8faca146f"],"usage":{"models":{"claude-opus-5-5":{"input":116,"output":44944,"cacheRead":4987927,"cacheWrite":131734}},"wallMs":477077},"wallMs":477077,"ownerInterventions":0,"reworkCycles":0}}
+{"ts":"2026-11-06T21:52:58.554Z","type":"usage.sample","actor":"usage","data":{"fiveHour":26,"sevenDay":71,"resetsAt":1794006600}}
+{"ts":"2026-11-06T21:54:37.971Z","type":"usage.sample","actor":"usage","data":{"fiveHour":28,"sevenDay":71,"resetsAt":1794006600}}
+{"ts":"2026-11-06T21:57:41.603Z","type":"usage.sample","actor":"usage","data":{"fiveHour":32,"sevenDay":72,"resetsAt":1794006600}}
+{"ts":"2026-11-06T22:00:45.642Z","type":"usage.sample","actor":"usage","data":{"fiveHour":37,"sevenDay":72,"resetsAt":1794006600}}
