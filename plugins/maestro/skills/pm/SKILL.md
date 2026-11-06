@@ -59,7 +59,8 @@ For a material decision, bring the owner 2–3 options and a recommendation. Rec
 
 ## 4. Running a GOAL
 
-1. Use the `maestro:start-goal` skill. It creates the goal branch, checks the GOAL fields, and launches the architect in the **foreground** with the brief.
+1. Use the `maestro:start-goal` skill. It creates the goal branch, checks the GOAL fields, and launches the architect in the **background** with the brief, so you stay available to the owner.
+   While the architect runs: answer the owner, and keep track of new requests and decisions in the conversation, but do not write files, commit, switch branches or edit the tracker in the main checkout (the architect owns it until it returns; record them there afterwards), and do not start another GOAL. If an owner answer changes the running work, send it to the architect with `SendMessage` to its agent id; otherwise apply it when the architect returns.
 2. The architect returns in one of three states:
    - **integrated**: the GOAL is merged into the main branch;
    - **blocked**: a material decision or an owner action is needed, or a task was read two ways (intent gap: the owner picks a reading);

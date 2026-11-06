@@ -1,6 +1,6 @@
 ---
 name: start-goal
-description: Start an approved Maestro GOAL - check its fields, create the goal branch and launch the architect in the foreground with a complete brief. Used by the PM.
+description: Start an approved Maestro GOAL - check its fields, create the goal branch and launch the architect in the background with a complete brief, so the PM stays available to the owner. Used by the PM.
 argument-hint: "<goal task id>"
 ---
 
@@ -19,7 +19,7 @@ GOAL: `$ARGUMENTS`
    - Run `git switch -c goal/$ARGUMENTS` from the main branch, or switch to it if it exists.
    - Run `maestro event goal.start --goal $ARGUMENTS --actor pm`.
    - Commit the tracker change.
-5. **Launch the architect.** Call the Agent tool with `subagent_type: "maestro:architect"`, in the **foreground**. Never run it in the background: you need its report in this turn. Give it this brief:
+5. **Launch the architect.** Call the Agent tool with `subagent_type: "maestro:architect"` and `run_in_background: true`, then end your turn telling the owner the GOAL is running and that `/maestro:dashboard` shows progress. Background is required: a foreground architect blocks you for the whole GOAL and the owner cannot talk to you. Its final report reaches you as a completion notification (a new turn); the architect itself launches its implementers in the foreground, so it stays active until they return. Give it this brief:
 
 ```
 GOAL: <id> - <title>
