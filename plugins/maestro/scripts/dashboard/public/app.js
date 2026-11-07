@@ -466,7 +466,7 @@ function renderBoard(s) {
 }
 
 // A tiny worker with a hard hat hammering on a block: shown on cards an agent is working on.
-const WORKER_SVG = `<svg class="worker" viewBox="0 -2 32 24" width="46" height="34" aria-hidden="true" focusable="false">
+const WORKER_SVG = `<svg class="worker" viewBox="0 -2 32 24" width="30" height="22" aria-hidden="true" focusable="false">
   <g class="w-body">
     <path class="w-hat" d="M5.2 5.2a3.6 3.6 0 0 1 7.2 0z"/>
     <rect class="w-hat" x="4.4" y="4.6" width="8.8" height="1.2" rx="0.6"/>
@@ -497,7 +497,8 @@ function taskCard(t, statusOf, running, showGoal) {
     <p class="card-top">${idEl(t.id)}${showGoal && t.goal ? `<span class="card-goal">${esc(t.goal)}</span>` : ""}${t.archived ? `<span class="badge b-archived">archived</span>` : ""}</p>
     <h3 class="card-title">${esc(t.title)}</h3>
     ${acTotal ? `<div class="ac" title="${acDone} of ${acTotal} acceptance criteria met: the implementer checks each one when its named test passes; the architect re-checks them at review"><div class="meter"><span style="width:${Math.round((acDone / acTotal) * 100)}%"></span></div><span class="frac">criteria ${acDone}/${acTotal}</span></div>` : ""}
-    ${who || agent ? `<p class="card-who">${who}${agent ? `<span class="working" title="${esc(`${agent.actor || "Agent"} (${agent.agentId}) is working on this task`)}">${WORKER_SVG}<span class="working-time">${timeEl(agent.since, "since")}</span></span>${modelTag(agent.model, agent.modelPlanned)}` : ""}</p>` : ""}
+    ${who ? `<p class="card-who">${who}</p>` : ""}
+    ${agent ? `<p class="card-live" title="${esc(`${agent.actor || "Agent"} (${agent.agentId}) is working on this task`)}">${WORKER_SVG}<span class="working-time">${timeEl(agent.since, "since")}</span>${modelTag(agent.model, agent.modelPlanned)}</p>` : ""}
     ${deps.length ? `<p class="deps">${deps.join("")}</p>` : ""}
   </article>`;
 }

@@ -606,3 +606,15 @@ test("qa_and_review_agents_carry_the_mission_of_the_nearest_earlier_start_event"
   const m = Object.fromEntries(s.agents.map((a) => [a.agentId, a.mission]));
   assert.deepEqual(m, { q1: "QA-1", q2: "QA-2", c1: "CR-1", a1: null });
 });
+
+test("running_agent_shows_the_model_it_was_launched_with", () => {
+  const events = [
+    { ts: "2026-11-06T15:00:00Z", type: "agent.start", agentId: "i9", data: { agentType: "maestro:implementer" } },
+    { ts: "2026-11-06T15:01:00Z", type: "agent.bind", agentId: "i9", actor: "impl-1", task: "TASK-1.1", data: {} },
+  ];
+  const tasks = [{ ...parent("TASK-1.1", "TASK-1"), status: "In Progress", plannedModel: "sonnet" }];
+  const launched = buildState({ tasks, events, agentModel: (id) => (id === "i9" ? "claude-opus-5-5" : null) }, NOW).agents[0];
+  assert.deepEqual([launched.model, launched.modelPlanned], ["claude-opus-5-5", false]);
+  const planned = buildState({ tasks, events }, NOW).agents[0];
+  assert.equal(planned.modelPlanned, true);
+});

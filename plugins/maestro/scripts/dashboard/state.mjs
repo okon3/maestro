@@ -220,7 +220,7 @@ function silentEnds(events) {
 // Default model of an agent definition, shown as "planned" when nothing better is known.
 const PLANNED_MODEL = { "maestro:implementer": "sonnet", "maestro:architect": "opus" };
 
-function buildAgents(events, now, tasksById) {
+function buildAgents(events, now, tasksById, agentModel = null) {
   const quietEnd = silentEnds(events);
   const starts = new Map();
   const stops = new Map();
@@ -298,8 +298,17 @@ function buildAgents(events, now, tasksById) {
       .map(([id, u]) => [id, ["input", "output", "cacheRead", "cacheWrite"].reduce((n, k) => n + (Number(u?.[k]) || 0), 0)])
       .sort((a, b) => b[1] - a[1])[0]?.[0];
     const planned = (task && tasksById?.get(task)?.plannedModel) || PLANNED_MODEL[type ?? ""] || null;
-    const model = used ?? bound.get(s.agentId)?.model ?? planned;
-    const modelPlanned = !used && !bound.get(s.agentId)?.model && Boolean(planned);
+    // The model Claude Code launched the agent with (its subagent meta file), when the reader can find it.
+    let launched = null;
+    if (!used && !bound.get(s.agentId)?.model && typeof agentModel === "function") {
+      try {
+        launched = agentModel(s.agentId) || null;
+      } catch {
+        launched = null;
+      }
+    }
+    const model = used ?? bound.get(s.agentId)?.model ?? launched ?? planned;
+    const modelPlanned = !used && !bound.get(s.agentId)?.model && !launched && Boolean(planned);
     const endedQuietly = !stop ? quietEnd.get(s.agentId) ?? null : null;
     const running = !stop && !endedQuietly && now - t0 < AGENT_RUNNING_MS;
     agents.push({
@@ -754,7 +763,7 @@ export function buildState(inputs, now = new Date()) {
     },
     milestones,
     tasks,
-    agents: buildAgents(events, nowMs, tasksById),
+    agents: buildAgents(events, nowMs, tasksById, inputs.agentModel ?? null),
     decisions: decisions.map((d) => ({ id: d.id, title: d.title, status: d.status, date: d.date, path: d.path ?? null, blocking: d.blocking })),
     reports: inputs.reports ?? [],
     costs,
@@ -794,6 +803,33 @@ const PM_CACHE_MAX = 500;
  * Reader for the PM usage inside a GOAL window, from the transcripts listed in .maestro/runtime/pm-sessions.json
  * (written by the context-watch hook). Null when no PM session is known.
  */
+/**
+ * agentId -> model id the agent was launched with, read from Claude Code's `agent-<id>.meta.json` in the
+ * subagents folder of a known PM session (`pickedEffortModel`, e.g. "claude-opus-5-5"), or null.
+ */
+export function agentModelReader(root) {
+  const data = readJson(join(root, ".maestro", "runtime", "pm-sessions.json"));
+  const dirs = [...new Set((Array.isArray(data?.sessions) ? data.sessions : []).map((s) => s?.transcriptPath).filter((p) => typeof p === "string" && p))].map((p) =>
+    join(p.replace(/\.jsonl$/, ""), "subagents"),
+  );
+  if (!dirs.length) return null;
+  const cache = new Map();
+  return (agentId) => {
+    if (cache.has(agentId)) return cache.get(agentId);
+    let model = null;
+    for (const dir of dirs) {
+      const meta = readJson(join(dir, `agent-${agentId}.meta.json`));
+      const m = meta?.pickedEffortModel ?? meta?.model;
+      if (typeof m === "string" && m) {
+        model = m.startsWith("claude-") ? m : null;
+        if (model) break;
+      }
+    }
+    cache.set(agentId, model);
+    return model;
+  };
+}
+
 export function pmUsageReader(root) {
   const data = readJson(join(root, ".maestro", "runtime", "pm-sessions.json"));
   const paths = [...new Set((Array.isArray(data?.sessions) ? data.sessions : []).map((s) => s?.transcriptPath).filter((p) => typeof p === "string" && p))];
@@ -952,6 +988,7 @@ export function loadState(root, { now = new Date() } = {}) {
       },
       warnings,
       pmUsage: pmUsageReader(root),
+      agentModel: agentModelReader(root),
     },
     now,
   );

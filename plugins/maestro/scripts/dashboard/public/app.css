@@ -297,7 +297,10 @@ details > summary:hover { color: var(--ink); }
 .ac .meter > span { background: var(--c); }
 .ac .frac { font-size: 12px; min-width: 0; }
 .card-who { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; font-size: 12.5px; color: var(--ink-2); }
-.working { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.card-live { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.card-live > * { white-space: nowrap; }
+.card-live .working-time { line-height: 1; }
+.card-live .model-tag { margin-left: auto; }
 .card.is-working { box-shadow: inset 3px 0 0 var(--c), 0 0 0 1.5px var(--r-impl), 0 3px 10px rgba(47, 138, 58, 0.14); }
 .worker { flex: none; overflow: visible; }
 .worker .w-hat { fill: #f2b33d; }
