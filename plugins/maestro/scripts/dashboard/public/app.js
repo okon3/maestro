@@ -453,7 +453,10 @@ function renderBoard(s) {
   }
   const extra = shown.filter((t) => !COLUMNS.includes(t.status));
   const cols = COLUMNS.map((name) => {
-    const items = shown.filter((t) => t.status === name).sort((a, b) => naturalCompare(a.id, b.id));
+    // Tasks an agent is working on come first, so the live work is always at the top of its column.
+    const items = shown
+      .filter((t) => t.status === name)
+      .sort((a, b) => Number(running.has(b.id)) - Number(running.has(a.id)) || naturalCompare(a.id, b.id));
     return `<section class="col c-${statusSlug(name)}" aria-label="${esc(name)}"><h2 class="col-head"><span class="status s-${statusSlug(name)}">${esc(name)}</span><span class="count">${items.length}</span></h2>${items.map((t) => taskCard(t, statusOf, running, showAll)).join("") || `<p class="col-empty">None</p>`}</section>`;
   }).join("");
   const other = extra.length
@@ -461,6 +464,24 @@ function renderBoard(s) {
     : "";
   return `${toggle}<div class="board">${cols}</div>${other}`;
 }
+
+// A tiny worker with a hard hat hammering on a block: shown on cards an agent is working on.
+const WORKER_SVG = `<svg class="worker" viewBox="0 -2 32 24" width="46" height="34" aria-hidden="true" focusable="false">
+  <g class="w-body">
+    <path class="w-hat" d="M5.2 5.2a3.6 3.6 0 0 1 7.2 0z"/>
+    <rect class="w-hat" x="4.4" y="4.6" width="8.8" height="1.2" rx="0.6"/>
+    <circle class="w-skin" cx="8.8" cy="7.4" r="2.2"/>
+    <path class="w-shirt" d="M6.2 10.2h5.2l0.6 5.6h-6.4z"/>
+    <path class="w-legs" d="M6.8 15.8l-0.8 4.6M10.8 15.8l0.8 4.6"/>
+  </g>
+  <g class="w-arm">
+    <path class="w-limb" d="M10.6 11.4l4.4-1.6"/>
+    <path class="w-handle" d="M14.2 10.2l3.4-6"/>
+    <rect class="w-head" x="15.4" y="1.6" width="5.2" height="2.6" rx="0.6" transform="rotate(30 18 2.9)"/>
+  </g>
+  <rect class="w-block" x="19" y="15.2" width="10" height="5.6" rx="1"/>
+  <g class="w-sparks"><path d="M21.2 13.4l-1.4-1.6M24 12.8v-2M26.8 13.4l1.4-1.6"/></g>
+</svg>`;
 
 function taskCard(t, statusOf, running, showGoal) {
   const acTotal = Number(t.acTotal) || 0;
@@ -472,11 +493,11 @@ function taskCard(t, statusOf, running, showGoal) {
     const met = FINISHED.has(st);
     return `<span class="dep${met ? " met" : ""}" title="${esc(`${id}: ${st || "unknown status"}`)}">${met ? "after" : "waits for"} ${idEl(id)}</span>`;
   });
-  return `<article class="card s-${statusSlug(t.status)}${t.archived ? " is-archived" : ""}">
+  return `<article class="card s-${statusSlug(t.status)}${t.archived ? " is-archived" : ""}${agent ? " is-working" : ""}">
     <p class="card-top">${idEl(t.id)}${showGoal && t.goal ? `<span class="card-goal">${esc(t.goal)}</span>` : ""}${t.archived ? `<span class="badge b-archived">archived</span>` : ""}</p>
     <h3 class="card-title">${esc(t.title)}</h3>
     ${acTotal ? `<div class="ac" title="${acDone} of ${acTotal} acceptance criteria met: the implementer checks each one when its named test passes; the architect re-checks them at review"><div class="meter"><span style="width:${Math.round((acDone / acTotal) * 100)}%"></span></div><span class="frac">criteria ${acDone}/${acTotal}</span></div>` : ""}
-    ${who || agent ? `<p class="card-who">${who}${agent ? `<span class="working" title="Agent ${esc(agent.agentId)} running">working ${timeEl(agent.since, "since")}</span>${modelTag(agent.model, agent.modelPlanned)}` : ""}</p>` : ""}
+    ${who || agent ? `<p class="card-who">${who}${agent ? `<span class="working" title="${esc(`${agent.actor || "Agent"} (${agent.agentId}) is working on this task`)}">${WORKER_SVG}<span class="working-time">${timeEl(agent.since, "since")}</span></span>${modelTag(agent.model, agent.modelPlanned)}` : ""}</p>` : ""}
     ${deps.length ? `<p class="deps">${deps.join("")}</p>` : ""}
   </article>`;
 }

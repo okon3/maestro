@@ -297,7 +297,24 @@ details > summary:hover { color: var(--ink); }
 .ac .meter > span { background: var(--c); }
 .ac .frac { font-size: 12px; min-width: 0; }
 .card-who { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; font-size: 12.5px; color: var(--ink-2); }
-.working { color: var(--r-impl); font-weight: 600; }
+.working { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.card.is-working { box-shadow: inset 3px 0 0 var(--c), 0 0 0 1.5px var(--r-impl), 0 3px 10px rgba(47, 138, 58, 0.14); }
+.worker { flex: none; overflow: visible; }
+.worker .w-hat { fill: #f2b33d; }
+.worker .w-skin { fill: #e9b98f; }
+.worker .w-shirt { fill: var(--r-impl); }
+.worker .w-legs, .worker .w-limb { stroke: #3b4a5c; stroke-width: 1.6; stroke-linecap: round; fill: none; }
+.worker .w-limb { stroke: var(--r-impl); stroke-width: 1.8; }
+.worker .w-handle { stroke: #8a5a2b; stroke-width: 1.4; stroke-linecap: round; }
+.worker .w-head { fill: #59636e; }
+.worker .w-block { fill: #b9c3cc; }
+.worker .w-sparks path { stroke: #f2b33d; stroke-width: 1.2; stroke-linecap: round; }
+.worker .w-arm { transform-box: view-box; transform-origin: 10.6px 11.4px; animation: w-hammer 0.9s cubic-bezier(.5, 0, .9, .6) infinite; }
+.worker .w-body { transform-box: view-box; transform-origin: 9px 20px; animation: w-bob 0.9s ease-in-out infinite; }
+.worker .w-sparks { opacity: 0; animation: w-sparks 0.9s linear infinite; }
+@keyframes w-hammer { 0% { transform: rotate(-28deg); } 50% { transform: rotate(-28deg); } 78% { transform: rotate(66deg); } 84% { transform: rotate(62deg); } 100% { transform: rotate(-28deg); } }
+@keyframes w-bob { 0%, 55%, 100% { transform: translateY(0); } 80% { transform: translateY(0.6px); } }
+@keyframes w-sparks { 0%, 76% { opacity: 0; } 80% { opacity: 1; } 92%, 100% { opacity: 0; } }
 .card .deps { margin-top: 5px; display: flex; flex-wrap: wrap; }
 .card .dep { margin-right: 6px; }
 .other-status { margin-top: 12px; }
@@ -465,6 +482,7 @@ details > summary:hover { color: var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
   .pulse { animation: none; }
+  .worker .w-arm, .worker .w-body, .worker .w-sparks { animation: none; }
 }
 @media (max-width: 1200px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
